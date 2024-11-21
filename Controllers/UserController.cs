@@ -11,15 +11,20 @@ namespace Varadhi.Controllers
         private readonly IAgentService _agentService;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
+		private readonly IAgentCustomerService _agentCustomerService;
 
-        public UserController(IAgentService agentService, IEmailService emailService, IConfiguration configuration)
+		public UserController(IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService) 
         {
             _agentService = agentService;
             _emailService = emailService;
             _configuration = configuration;
-        }
+			_agentCustomerService = agentCustomerService;
+		}
+		
 
-        [HttpPost("registerAgent")]
+			
+		
+		[HttpPost("registerAgent")]
         public async Task<IActionResult> RegisterAgent([FromBody] RegisterAgentRequest request)
         {
             try
@@ -76,7 +81,20 @@ namespace Varadhi.Controllers
             }
         }
 
-        private string HashPassword(string password)
+		[HttpPost("assignCustomerToAgent")]
+		public async Task<IActionResult> AssignCustomerToAgent([FromBody] AssignmentRequest request)
+		{
+			var response = await _agentCustomerService.AssignCustomerToAgentAsync(request);
+
+			if (response.Status == "error")
+			{
+				return BadRequest(response);
+			}
+
+			return Ok(response);
+		}
+
+		private string HashPassword(string password)
         {
             using (var sha256 = SHA256.Create())
             {
@@ -84,5 +102,6 @@ namespace Varadhi.Controllers
                 return BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
             }
         }
+
     }
 }
