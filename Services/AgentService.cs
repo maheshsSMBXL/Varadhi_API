@@ -19,10 +19,12 @@ namespace Varadhi.Services
                 Name = name,
                 Email = email,
                 Password = password,
+                SocketId = "",
                 TenantId = tenantId.ToString(),
                 Status = "offline",
                 Busy = false,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now,
             };
 
             await _context.SupportAgents.AddAsync(agent);
@@ -34,7 +36,8 @@ namespace Varadhi.Services
             var roleAssignment = new SupportRoleAssignAgents
             {
                 AgentID = agentId,
-                RoleID = roleId
+                RoleID = roleId,
+                AssignedAt = DateTime.Now,
             };
 
             await _context.SupportRoleAssignAgents.AddAsync(roleAssignment);
