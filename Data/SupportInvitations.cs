@@ -2,7 +2,7 @@
 
 namespace Varadhi.Data
 {
-    public class SupportInvitation
+    public class SupportInvitations
     {
         [Key]
         public string InvitationID { get; set; }        
