@@ -28,5 +28,9 @@ namespace Varadhi.Data
         {
             return base.SaveChanges();
         }
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
     }
 }
