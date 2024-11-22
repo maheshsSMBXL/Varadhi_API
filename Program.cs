@@ -1,3 +1,4 @@
+using Agri_Smart.Helpers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Varadhi.Data;
@@ -32,6 +33,11 @@ builder.Services.AddCors(options =>
         builder => builder.WithOrigins("*")
         .AllowAnyHeader()
         .AllowAnyMethod());
+});
+
+builder.Services.AddControllers(options =>
+{
+    options.ModelBinderProviders.Insert(0, new JsonModelBinderProvider());
 });
 
 var app = builder.Build();

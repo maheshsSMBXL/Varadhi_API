@@ -23,6 +23,7 @@ namespace Varadhi.Data
         public DbSet<SupportChats> SupportChats { get; set; }
         public DbSet<SupportCustomers> SupportCustomers { get; set; }
         public DbSet<SupportEmailVerifications> SupportEmailVerifications { get; set; }
+        public DbSet<SupportFAQSection> SupportFAQSection { get; set; }
 
         public override int SaveChanges()
         {
