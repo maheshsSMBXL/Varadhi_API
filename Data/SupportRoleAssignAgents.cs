@@ -7,8 +7,8 @@ namespace Varadhi.Data
     {
         [Key]
         public int AssignmentID { get; set; }
-        public string AgentID { get; set; }
-        public int RoleID { get; set; }
+        public string? AgentID { get; set; }
+        public int? RoleID { get; set; }
         public DateTime? AssignedAt { get; set; }
     }
 }

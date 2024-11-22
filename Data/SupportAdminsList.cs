@@ -7,6 +7,6 @@ namespace Varadhi.Data
     {
         [Key]
         public int AdminId { get; set; }
-        public string Email { get; set; }
+        public string? Email { get; set; }
     }
 }

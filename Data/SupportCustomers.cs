@@ -7,7 +7,7 @@ namespace Varadhi.Data
         [Key]
         public string CustomerId { get; set; }
         public int? TenantId { get; set; }
-        public string SocketId { get; set; }
+        public string? SocketId { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

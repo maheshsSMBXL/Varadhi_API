@@ -7,9 +7,9 @@ namespace Varadhi.Data
     {
         [Key]
         public int WorkId { get; set; }
-        public string AgentId { get; set; }
-        public int ConnectionsCapacity { get; set; }
-        public string PreferredLanguage { get; set; }
+        public string? AgentId { get; set; }
+        public int? ConnectionsCapacity { get; set; }
+        public string? PreferredLanguage { get; set; }
         public DateTime? CreatedAt { get; set; }
     }
 }
