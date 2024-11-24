@@ -697,7 +697,7 @@ namespace Varadhi.Controllers
 
                 var emailData = new EmailData
                 {
-                    From = "support@marketcentral.in",
+                    From = "chatsupportops@personalizedhealthrx.com",
                     To = request.AdminEmail,
                     Subject = emailSubject,
                     Body = emailBody,
