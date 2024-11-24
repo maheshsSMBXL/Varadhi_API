@@ -1,8 +1,8 @@
 ﻿namespace Varadhi.Models
 {
-    public class LoginRequest
+    public class ResendInvitationRequest
     {
+        public int TenantId { get; set; }
         public string Email { get; set; }
-        public string Password { get; set; }
     }
 }
