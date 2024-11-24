@@ -15,8 +15,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IApplicationDbContext, ApplicationDbContext>();
 builder.Services.AddScoped<IAgentService, AgentService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<IAgentCustomerService, AgentCustomerService>(); 
-
+builder.Services.AddScoped<IAgentCustomerService, AgentCustomerService>();
+builder.Services.AddScoped<IChatService, ChatService>();
 // For Entity Framework
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 

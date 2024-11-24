@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Security.Cryptography;
 using System.Text;
+using Varadhi.Data;
 using Varadhi.Models;
 using Varadhi.Services;
 
@@ -12,13 +13,14 @@ namespace Varadhi.Controllers
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
 		private readonly IAgentCustomerService _agentCustomerService;
-
-		public UserController(IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService) 
+        private readonly IChatService _chatService;
+		public UserController(IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService,IChatService chatService) 
         {
             _agentService = agentService;
             _emailService = emailService;
             _configuration = configuration;
 			_agentCustomerService = agentCustomerService;
+            _chatService = chatService;
 		}
 		
 
@@ -93,7 +95,295 @@ namespace Varadhi.Controllers
 
 			return Ok(response);
 		}
+		[HttpPost("postChatMessage")]
+		public async Task<IActionResult> PostChatMessage([FromBody] ChatRequest data)
+		{
+			var response = await _chatService.PostChatMessageAsync(data);
 
+			if (response.Success)
+				return Ok(response);
+			else
+				return BadRequest(response);
+		}
+		[HttpPost("validateOTP")]
+		public async Task<IActionResult> ValidateOTP([FromBody] OTPRequest data)
+		{
+			var response = await _agentCustomerService.ValidateOTPAsync(data);
+
+			if (response.Success)
+				return Ok(response);
+			else
+				return BadRequest(response);
+		}
+
+		[HttpPost("loginAgent")]
+		public async Task<IActionResult> LoginAgent([FromBody] LoginRequest data)
+		{
+			var response = await _agentCustomerService.LoginAgentAsync(data);
+
+			if (response.Success)
+				return Ok(response);
+			else
+				return BadRequest(response);
+		}
+
+		[HttpPost("updateAgentSocketId")]
+		public async Task<IActionResult> UpdateAgentSocketId([FromBody] UpdateSocketIdRequest request)
+		{
+			if (string.IsNullOrEmpty(request.AgentId) || string.IsNullOrEmpty(request.SocketId))
+			{
+				return BadRequest(new { status = "error", message = "AgentId and SocketId are required." });
+			}
+
+			var (success, message) = await _agentCustomerService.UpdateSocketIdAsync(request.AgentId, request.SocketId);
+
+			if (success)
+			{
+				return Ok(new { status = "success", message });
+			}
+
+			return NotFound(new { status = "error", message });
+		}
+		[HttpPost("registerCustomer")]
+		public async Task<IActionResult> RegisterCustomer([FromBody] Models.CustomerRegistrationRequest request)
+		{
+			if (request.TenantId <= 0 || string.IsNullOrEmpty(request.SocketId))
+			{
+				return BadRequest(new { success = false, message = "TenantId and SocketId are required." });
+			}
+
+			var (success, message, customerId) = await _agentCustomerService.RegisterCustomerAsync(request);
+
+			if (success)
+			{
+				return Ok(new { success = true, message, customerId });
+			}
+
+			return StatusCode(500, new { success = false, message });
+		}
+		[HttpPost("updateCustomerSocketId")]
+		public async Task<IActionResult> UpdateCustomerSocketId([FromBody] UpdateCustomerSocketRequest request)
+		{
+			if (string.IsNullOrEmpty(request.CustomerId) || string.IsNullOrEmpty(request.SocketId))
+			{
+				return BadRequest(new { status = "error", message = "customerId and socketId are required." });
+			}
+
+			var (success, message) = await _agentCustomerService.UpdateCustomerSocketIdAsync(request);
+
+			if (success)
+			{
+				return Ok(new { status = "success", message });
+			}
+
+			return StatusCode(500, new { status = "error", message });
+		}
+		[HttpPost("raiseTicket")]
+		public async Task<IActionResult> RaiseTicket([FromBody] RaiseTicketRequest request)
+		{
+			// Validate required fields
+			if (request.TenantId <= 0 || string.IsNullOrEmpty(request.CustomerId) || string.IsNullOrEmpty(request.Complaint))
+			{
+				return BadRequest(new { status = "error", message = "tenantId, customerId, and complaint are required fields." });
+			}
+
+			var (success, message) = await _agentCustomerService.RaiseTicketAsync(request);
+
+			if (success)
+			{
+				return Ok(new { status = "success", message });
+			}
+
+			return StatusCode(500, new { status = "error", message });
+		}
+		[HttpPost("getAllTickets")]
+		public async Task<IActionResult> GetAllTickets([FromBody] TicketRequest request)
+		{
+			// Validate pagination parameters
+			if (request.Start <= 0 || request.End <= 0 || request.End < request.Start)
+			{
+				return BadRequest(new { status = "error", message = "Invalid pagination parameters. Ensure 'start' and 'end' are positive and 'end' is greater than 'start'." });
+			}
+
+			var result = await _agentCustomerService.GetAllTicketsAsync(request);
+
+			if (result.Success)
+				return Ok(new { status = "success", message = "Tickets retrieved successfully.", tickets = result.Tickets });
+			else
+				return NotFound(new { status = "error", message = result.Message });
+		}
+		[HttpPost("getTicketsByCustomerId")]
+		public async Task<IActionResult> GetTicketsByCustomerId([FromBody] TicketRequestCustomer request)
+		{
+			if (string.IsNullOrEmpty(request.CustomerId))
+			{
+				return BadRequest(new { status = "error", message = "CustomerId is required." });
+			}
+
+			var result = await _agentCustomerService.GetTicketsByCustomerIdAsync(request);
+
+			if (result.Success)
+				return Ok(new { status = "success", message = "Tickets retrieved successfully.", tickets = result.Tickets });
+			else
+				return NotFound(new { status = "error", message = result.Message });
+		}
+		[HttpPost("updateTicketStatus")]
+		public async Task<IActionResult> UpdateTicketStatus([FromBody] UpdateTicketRequest request)
+		{
+			if (request.TicketId <= 0 || string.IsNullOrEmpty(request.NewStatus))
+			{
+				return BadRequest(new UpdateTicketResponse
+				{
+					Status = "error",
+					Message = "TicketId and NewStatus are required."
+				});
+			}
+
+			var result = await _agentCustomerService.UpdateTicketStatusAsync(request);
+
+			if (result.Status == "success")
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return NotFound(result);
+			}
+		}
+		[HttpPost("getChatHistory")]
+		public async Task<IActionResult> GetChatHistory([FromBody] ChatHistoryRequest request)
+		{
+			if (string.IsNullOrEmpty(request.AgentId) || string.IsNullOrEmpty(request.CustomerId))
+			{
+				return BadRequest(new ChatHistoryResponse
+				{
+					Status = "error",
+					Message = "AgentId and CustomerId are required."
+				});
+			}
+
+			var result = await _agentCustomerService.GetChatHistoryAsync(request);
+
+			if (result.Status == "success")
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return BadRequest(result);
+			}
+		}
+		[HttpPost("getAgentCustomerList")]
+		public async Task<IActionResult> GetAgentCustomerList([FromBody] AgentCustomerRequest request)
+		{
+			if (string.IsNullOrEmpty(request.AgentId))
+			{
+				return BadRequest(new AgentCustomerResponse
+				{
+					Status = "error",
+					Message = "AgentId is required."
+				});
+			}
+
+			var result = await _agentCustomerService.GetAgentCustomerListAsync(request);
+
+			if (result.Status == "success")
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return BadRequest(result);
+			}
+		}
+
+		[HttpPost("getAgents")]
+		public async Task<IActionResult> GetAgents([FromBody] AgentRequest request)
+		{
+			if (request.TenantId=="")
+			{
+				return BadRequest(new AgentResponse
+				{
+					Success = false,
+					Message = "TenantId is required."
+				});
+			}
+
+			var result = await _agentCustomerService.GetAgentsAsync(request);
+
+			if (result.Success)
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return BadRequest(result);
+			}
+		}
+		[HttpGet("getAgentById/{agentId}")]
+		public async Task<IActionResult> GetAgentById(string agentId)
+		{
+			// Check if agentId is provided
+			if (string.IsNullOrEmpty(agentId))
+			{
+				return BadRequest(new AgentResponse
+				{
+					Success = false,
+					Message = "AgentId is required."
+				});
+			}
+
+			// Fetch agent details by agentId using the service
+			var result = await _agentCustomerService.GetAgentByIdAsync(agentId);
+
+			// Return appropriate response
+			if (result.Success)
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return NotFound(result);
+			}
+		}
+
+		[HttpPost("assignTicket")]
+		public async Task<IActionResult> AssignTicket([FromBody] AssignTicketRequest request)
+		{
+			if (!ModelState.IsValid)
+			{
+				return BadRequest(new AssignTicketResponse
+				{
+					Success = false,
+					Message = "Invalid input data."
+				});
+			}
+
+			var result = await _agentCustomerService.AssignTicketAsync(request);
+
+			if (result.Success)
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return BadRequest(result);
+			}
+		}
+		[HttpGet("getTicketsByAssignedTo/{agentId}")]
+		public async Task<IActionResult> GetTicketsByAssignedTo(string agentId)
+		{
+			var result = await _agentCustomerService.GetTicketsByAssignedToAsync(agentId);
+
+			if (result.Status == "success")
+			{
+				return Ok(result);
+			}
+			else
+			{
+				return BadRequest(result);
+			}
+		}
 		private string HashPassword(string password)
         {
             using (var sha256 = SHA256.Create())
