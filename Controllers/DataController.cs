@@ -578,7 +578,7 @@ namespace Varadhi.Controllers
                 {
                     Success = true,
                     Message = "Login successful.",
-                    TenantId = tenantPassword.TenantId
+                    TenantId = tenantPassword.TenantId.ToString()
                 };
 
                 return Ok(response);
