@@ -248,7 +248,7 @@ namespace Varadhi.Controllers
                 // Prepare email content for the invitation
                 var emailData = new EmailData
                 {
-                    From = "support@marketcentral.in",
+                    From = "chatsupportops@personalizedhealthrx.com",
                     To = request.Email,
                     Subject = "Invitation Resent: Join as an Agent",
                     Body = $"Hello,<br><br>You have been re-invited to join as an agent for Tenant ID: {pendingInvitation.TenantID}.<br><br>Your role will be: {(pendingInvitation.RoleID == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
@@ -304,7 +304,8 @@ namespace Varadhi.Controllers
                 var bytes = Encoding.UTF8.GetBytes(json);
 
                 var encrypted = encryptor.TransformFinalBlock(bytes, 0, bytes.Length);
-                return Convert.ToBase64String(encrypted);
+				var base64String = Convert.ToBase64String(encrypted, Base64FormattingOptions.None);
+                return base64String;
             }
         }
         [HttpPost("DecryptInvitation")]
@@ -432,14 +433,19 @@ namespace Varadhi.Controllers
 
                 // Encrypt the data using a secret key
                 var encryptedData = EncryptData(EncryptionKey, FixedIV, JsonSerializer.Serialize(dataToEncrypt));
+				if (string.IsNullOrEmpty(encryptedData))
+				{
+					throw new ArgumentException("Missing 'encryptedData' in request body.");
+				}
+				Console.WriteLine("Encrypted Data: " + encryptedData);
 
-                // Generate the invitation link
-                var invitationLink = $"https://agent.com/?invitation={Uri.EscapeDataString(encryptedData)}";
+				// Generate the invitation link
+				var invitationLink = $"https://agent.com/?invitation={Uri.EscapeDataString(encryptedData)}";
 
                 // Prepare email content for the invitation
                 var emailData = new EmailData
                 {
-                    From = "support@marketcentral.in",
+                    From = "chatsupportops@personalizedhealthrx.com",
                     To = request.Email,
                     Subject = "You're Invited to Join as an Agent",
                     Body = $"Hello,<br><br>You have been invited to join as an agent for Tenant ID: {request.TenantId}.<br><br>Your role will be: {(request.RoleId == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",

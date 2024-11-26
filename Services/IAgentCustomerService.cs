@@ -19,7 +19,8 @@ namespace Varadhi.Services
 		Task<AgentResponse> GetAgentsAsync(AgentRequest request);
 		Task<AgentResponseById> GetAgentByIdAsync(string agentId);
 		Task<AssignTicketResponse> AssignTicketAsync(AssignTicketRequest request);
-
+		Task<CustomerResponse> PostCustomerInfo(CustomerRequest request);
+		Task<CustomerResponse> GetCustomerInfo(string customerId);
 		Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId);
 	}
 }

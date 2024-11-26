@@ -19,7 +19,8 @@ namespace Varadhi.Data
         DbSet<SupportCustomers> SupportCustomers { get; set; }
         DbSet<SupportEmailVerifications> SupportEmailVerifications { get; set; }
         DbSet<SupportFAQSection> SupportFAQSection { get; set; }
-        int SaveChanges();
+		DbSet<CustomerDetailInfo> CustomerDetailInfo { get; set; }
+		int SaveChanges();
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

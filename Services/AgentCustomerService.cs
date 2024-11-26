@@ -671,6 +671,96 @@ namespace Varadhi.Services
 				};
 			}
 		}
+		public async Task<CustomerResponse> PostCustomerInfo(CustomerRequest data)
+		{
+			try
+			{
+				
+				// Insert chat message into the database
+				var customerDetail = new CustomerDetailInfo
+				{
+					CustomerId = data.CustomerId,
+					Name = data.Name,
+					Email = data.Email,
+					Issue = data.Issue,
+					Description = data.Description,
+					IP = data.IP,
+					DeviceType = data.DeviceType,
+					Browser = data.Browser,
+					City = data.City,
+					CountryName = data.CountryName,
+					CountryCode = data.CountryCode,
+					Region = data.Region,
+					DateCreated = DateTime.UtcNow, // Set creation date
+					DateUpdated = null // This is null when a new record is created
+				};
+
+				_context.CustomerDetailInfo.Add(customerDetail);
+				await _context.SaveChangesAsync();
+
+				return new CustomerResponse { Success = true, Message = "Chat message and file uploaded successfully." };
+			}
+			catch (Exception ex)
+			{
+				return new CustomerResponse { Success = false, Message = "An error occurred while posting the chat message." };
+			}
+		}
+
+		public async Task<CustomerResponse> GetCustomerInfo(string customerId)
+		{
+			try
+			{
+				// Fetch customer detail from the database by CustomerId
+				var customerDetail = await _context.CustomerDetailInfo
+					.FirstOrDefaultAsync(c => c.CustomerId == customerId);
+
+
+				// Check if customer detail exists
+				if (customerDetail == null)
+				{
+					return new CustomerResponse
+					{
+						Success = false,
+						Message = "Customer not found."
+					};
+				}
+				var customerRequest = new CustomerRequest
+				{
+					CustomerId = customerDetail.CustomerId,
+					Name = customerDetail.Name,
+					Email = customerDetail.Email,
+					Issue = customerDetail.Issue,
+					Description = customerDetail.Description,
+					IP = customerDetail.IP,
+					DeviceType = customerDetail.DeviceType,
+					Browser = customerDetail.Browser,
+					City = customerDetail.City,
+					CountryName = customerDetail.CountryName,
+					CountryCode = customerDetail.CountryCode,
+					Region = customerDetail.Region
+				};
+
+				// Return the customer data as part of the response (you can modify this to include the customer data)
+				return new CustomerResponse
+				{
+					Success = true,
+					Message = "Customer details fetched successfully.",
+					CustomerDetails = customerRequest
+
+					// You can map customerDetail to a response model here if necessary
+				};
+			}
+			catch (Exception ex)
+			{
+				return new CustomerResponse
+				{
+					Success = false,
+					Message = "An error occurred while retrieving the customer details.",
+					
+				};
+			}
+		}
+
 		private string ComputeSha256Hash(string rawData)
 		{
 			using (SHA256 sha256Hash = SHA256.Create())

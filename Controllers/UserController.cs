@@ -52,7 +52,7 @@ namespace Varadhi.Controllers
                 // Prepare email content
                 var emailData = new EmailData
                 {
-                    From = "support@marketcentral.in",
+                    From = "chatsupportops@personalizedhealthrx.com",
                     To = request.Email,
                     Subject = "Please Verify Your Email",
                     Body = $"Thank you for registering. Please use the following OTP to verify your email: {verificationCode}",
@@ -383,6 +383,26 @@ namespace Varadhi.Controllers
 			{
 				return BadRequest(result);
 			}
+		}
+		[HttpPost("postCustomerInfo")]
+		public async Task<IActionResult> PostcustomerInfo([FromBody] CustomerRequest data)
+		{
+			var response = await _agentCustomerService.PostCustomerInfo(data);
+
+			if (response.Success)
+				return Ok(response);
+			else
+				return BadRequest(response);
+		}
+		[HttpGet("getCustomerInfo/{customerId}")]
+		public async Task<IActionResult> GetCustomerInfo(string customerId)
+		{
+			var response = await _agentCustomerService.GetCustomerInfo(customerId);
+
+			if (response.Success)
+				return Ok(response); // Returns HTTP 200 with response
+			else
+				return NotFound(response); // Returns HTTP 404 if customer is not found
 		}
 		private string HashPassword(string password)
         {
