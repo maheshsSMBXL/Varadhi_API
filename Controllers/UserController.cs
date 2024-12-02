@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Cryptography;
 using System.Text;
 using Varadhi.Data;
@@ -296,7 +297,7 @@ namespace Varadhi.Controllers
 				return BadRequest(result);
 			}
 		}
-
+     
 		[HttpPost("getAgents")]
 		public async Task<IActionResult> GetAgents([FromBody] AgentRequest request)
 		{
@@ -320,6 +321,7 @@ namespace Varadhi.Controllers
 				return BadRequest(result);
 			}
 		}
+		[Authorize]
 		[HttpGet("getAgentById/{agentId}")]
 		public async Task<IActionResult> GetAgentById(string agentId)
 		{

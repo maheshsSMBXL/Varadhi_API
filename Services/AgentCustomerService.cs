@@ -8,15 +8,20 @@ using Microsoft.AspNetCore.Http;
 using System.Text;
 using System.Security.Cryptography;
 using System.Net.Sockets;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.Extensions.Options;
 namespace Varadhi.Services
 {
 	public class AgentCustomerService : IAgentCustomerService
 	{
 		private readonly ApplicationDbContext _context;
-
-		public AgentCustomerService(ApplicationDbContext context)
+		private readonly JwtSettings _jwtSettings;
+		public AgentCustomerService(ApplicationDbContext context, IOptions<JwtSettings> jwtSettings)
 		{
 			_context = context;
+			_jwtSettings = jwtSettings.Value;
 		}
 
 		public async Task<AssignmentResponse> AssignCustomerToAgentAsync(AssignmentRequest request)
@@ -165,10 +170,20 @@ namespace Varadhi.Services
 				await _context.SaveChangesAsync();
 
 			// Fetch role name based on agentId
-				var role = await _context.SupportRoleAssignAgents.FirstOrDefaultAsync(ra => ra.AgentID == agent.AgentId);
+				//var role = await _context.SupportRoleAssignAgents.FirstOrDefaultAsync(ra => ra.AgentID == agent.AgentId);
 
 
-				var roleName = await _context.SupportRoles.FirstOrDefaultAsync(a => a.RoleID == role.RoleID);
+				//var roleName = await _context.SupportRoles.FirstOrDefaultAsync(a => a.RoleID == role.RoleID);
+
+				// Fetch role name based on agentId
+				var roleAssign = await _context.SupportRoleAssignAgents
+					.FirstOrDefaultAsync(ra => ra.AgentID == agent.AgentId);
+				var role = await _context.SupportRoles
+					.FirstOrDefaultAsync(a => a.RoleID == roleAssign.RoleID);
+				var roleName = role?.RoleName ?? "User";
+
+				// Generate JWT Token
+				var token = GenerateJwtToken(agent, roleName);
 
 				return new LoginResponse
 				{
@@ -177,7 +192,8 @@ namespace Varadhi.Services
 					AgentId = agent.AgentId,
 					TenantId = agent.TenantId,
 					Status = "online",
-					RoleName = roleName.RoleName
+					RoleName = roleName,
+					Token = token // Include the token in the response
 				};
 			}
 			catch (Exception ex)
@@ -759,6 +775,31 @@ namespace Varadhi.Services
 					
 				};
 			}
+		}
+		private string GenerateJwtToken(SupportAgents agent, string roleName)
+		{
+			var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+			var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+			// Define the claims
+			var claims = new[]
+			{
+				new Claim(JwtRegisteredClaimNames.Sub, agent.AgentId),
+				new Claim(JwtRegisteredClaimNames.Email, agent.Email),
+				new Claim(ClaimTypes.Role, roleName),
+				new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+			};
+
+			// Create the token
+			var token = new JwtSecurityToken(
+				issuer: _jwtSettings.Issuer,
+				audience: _jwtSettings.Audience,
+				claims: claims,
+				expires: DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryInMinutes),
+				signingCredentials: credentials
+			);
+
+			return new JwtSecurityTokenHandler().WriteToken(token);
 		}
 
 		private string ComputeSha256Hash(string rawData)
