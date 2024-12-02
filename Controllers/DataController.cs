@@ -13,6 +13,7 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using Agri_Smart.Helpers;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace Varadhi.Controllers
 {
@@ -290,108 +291,215 @@ namespace Varadhi.Controllers
             }
         }
 
-        private static string EncryptData(string key, string iv, object data)
-        {
-            using (var aesAlg = Aes.Create())
-            {
-                aesAlg.Key = Encoding.UTF8.GetBytes(key);
-                aesAlg.IV = Encoding.UTF8.GetBytes(iv);
-                aesAlg.Mode = CipherMode.CBC;
-                aesAlg.Padding = PaddingMode.PKCS7;
+		//    private static string EncryptData(string key, string iv, object data)
+		//    {
+		//        using (var aesAlg = Aes.Create())
+		//        {
+		//            aesAlg.Key = Encoding.UTF8.GetBytes(key);
+		//            aesAlg.IV = Encoding.UTF8.GetBytes(iv);
+		//            aesAlg.Mode = CipherMode.CBC;
+		//            aesAlg.Padding = PaddingMode.PKCS7;
 
-                var encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
-                var json = System.Text.Json.JsonSerializer.Serialize(data);
-                var bytes = Encoding.UTF8.GetBytes(json);
+		//            var encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+		//            var json = System.Text.Json.JsonSerializer.Serialize(data);
+		//            var bytes = Encoding.UTF8.GetBytes(json);
 
-                var encrypted = encryptor.TransformFinalBlock(bytes, 0, bytes.Length);
-				var base64String = Convert.ToBase64String(encrypted, Base64FormattingOptions.None);
-                return base64String;
-            }
-        }
-        [HttpPost("DecryptInvitation")]
-        public async Task<IActionResult> DecryptInvitation([FromBody] DecryptInvitationRequest request)
-        {
-            try
-            {
-                // Validate and extract the encrypted data
-                if (string.IsNullOrEmpty(request.EncryptedData))
-                {
-                    throw new ArgumentException("Missing 'encryptedData' in request body.");
-                }
+		//            var encrypted = encryptor.TransformFinalBlock(bytes, 0, bytes.Length);
+		//var base64String = Convert.ToBase64String(encrypted, Base64FormattingOptions.None);
+		//            return base64String;
+		//        }
+		//    }
+		private static string EncryptData(string key, string iv, object data)
+		{
+			try
+			{
+				// Convert the key and IV from Base64 strings to byte arrays
+				byte[] keyBytes = Encoding.UTF8.GetBytes(key);
+				byte[] ivBytes = Encoding.UTF8.GetBytes(iv);
 
-                // Decrypt the data using AES-256
-                var decryptedJson = DecryptData(EncryptionKey, FixedIV, request.EncryptedData);
-                var decryptedData = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson);
+				// Serialize the object to JSON and then to a byte array
+				string json = JsonSerializer.Serialize(data);
+				byte[] plainBytes = Encoding.UTF8.GetBytes(json);
 
-                // Extract tenantId and roleId from decrypted data
-                if (!decryptedData.ContainsKey("tenantId") || !decryptedData.ContainsKey("roleId"))
-                {
-                    throw new ArgumentException("Decrypted data does not contain 'tenantId' or 'roleId'.");
-                }
+				byte[] encryptedBytes;
 
-                var tenantId = decryptedData["tenantId"];
-                var roleId = decryptedData["roleId"];
+				// Set up AES encryption
+				using (Aes aes = Aes.Create())
+				{
+					aes.Key = keyBytes;
+					aes.IV = ivBytes;
+					aes.Mode = CipherMode.CBC;
+					aes.Padding = PaddingMode.PKCS7;
 
-                // Fetch tenantKey from the database
-                var tenant = await _context.SupportTenants.FirstOrDefaultAsync(t => t.TenantId == int.Parse(tenantId));
-                if (tenant == null)
-                {
-                    throw new ArgumentException("Tenant not found.");
-                }
+					// Encrypt the plaintext bytes
+					using (ICryptoTransform encryptor = aes.CreateEncryptor())
+					{
+						encryptedBytes = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+					}
+				}
 
-                var tenantKey = tenant.TenantKey;
+				// Convert the encrypted bytes to a Base64 string and return
+				return Convert.ToBase64String(encryptedBytes);
+			}
+			catch (Exception ex)
+			{
+				throw new ArgumentException($"Encryption failed: {ex.Message}");
+			}
+		}
 
-                // Fetch role details from the database (optional)
-                var role = await _context.SupportRoles.FirstOrDefaultAsync(r => r.RoleID == int.Parse(roleId));
-                if (role == null)
-                {
-                    throw new ArgumentException("Role not found.");
-                }
 
-                var roleName = role.RoleName;
 
-                // Prepare the success response
-                var response = new DecryptInvitationResponse
-                {
-                    Success = true,
-                    TenantId = tenantId,
-                    TenantKey = tenantKey,
-                    RoleId = roleId,
-                    RoleName = roleName
-                };
+		[HttpPost("DecryptInvitation")]
+		public async Task<IActionResult> DecryptInvitation([FromBody] DecryptInvitationRequest request)
+		{
+			try
+			{
+				// Validate input
+				if (string.IsNullOrEmpty(request.EncryptedData))
+				{
+					throw new ArgumentException("Missing 'encryptedData' in request body.");
+				}
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors and prepare the error response
-                var response = new DecryptInvitationResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				// Decrypt data
+				var decryptedJson = DecryptData(EncryptionKey, FixedIV, request.EncryptedData);
+				Console.WriteLine($"Decrypted Data (Raw): {decryptedJson}");
 
-                return StatusCode(500, response);
-            }
-        }
+				// Unescape JSON if needed
+				decryptedJson = Regex.Unescape(decryptedJson);
+				Console.WriteLine($"Decrypted Data (Unescaped): {decryptedJson}");
 
-        private static string DecryptData(string key, string iv, string encryptedData)
-        {
-            using (var aesAlg = Aes.Create())
-            {
-                aesAlg.Key = Encoding.UTF8.GetBytes(key);
-                aesAlg.IV = Encoding.UTF8.GetBytes(iv);
-                aesAlg.Mode = CipherMode.CBC;
-                aesAlg.Padding = PaddingMode.PKCS7;
+				// Validate JSON format
+				if (!decryptedJson.Trim().StartsWith("{") || !decryptedJson.Trim().EndsWith("}"))
+				{
+					throw new ArgumentException("Decrypted JSON is malformed or incomplete.");
+				}
 
-                var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
-                var encryptedBytes = Convert.FromBase64String(encryptedData);
-                var decryptedBytes = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
+				// Deserialize JSON
+				Dictionary<string, string> decryptedData;
+				try
+				{
+					decryptedData = JsonSerializer.Deserialize<Dictionary<string, string>>(decryptedJson, new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true,
+						AllowTrailingCommas = true
+					});
+				}
+				catch (JsonException jsonEx)
+				{
+					throw new ArgumentException($"Invalid JSON format: {jsonEx.Message}. JSON Content: {decryptedJson}");
+				}
 
-                return Encoding.UTF8.GetString(decryptedBytes);
-            }
-        }
-        [HttpPost("InviteAgent")]
+				// Check for required keys
+				if (!decryptedData.ContainsKey("tenantId") || !decryptedData.ContainsKey("roleId"))
+				{
+					throw new ArgumentException("Decrypted data does not contain 'tenantId' or 'roleId'.");
+				}
+
+				var tenantId = decryptedData["tenantId"];
+				var roleId = decryptedData["roleId"];
+
+				// Fetch tenant from the database
+				var tenant = await _context.SupportTenants.FirstOrDefaultAsync(t => t.TenantId == int.Parse(tenantId));
+				if (tenant == null)
+				{
+					throw new ArgumentException("Tenant not found.");
+				}
+
+				var tenantKey = tenant.TenantKey;
+
+				// Fetch role details
+				var role = await _context.SupportRoles.FirstOrDefaultAsync(r => r.RoleID == int.Parse(roleId));
+				if (role == null)
+				{
+					throw new ArgumentException("Role not found.");
+				}
+
+				var roleName = role.RoleName;
+
+				// Success response
+				var response = new DecryptInvitationResponse
+				{
+					Success = true,
+					TenantId = tenantId,
+					TenantKey = tenantKey,
+					RoleId = roleId,
+					RoleName = roleName
+				};
+
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Error response
+				var response = new DecryptInvitationResponse
+				{
+					Success = false,
+					Message = $"An error occurred: {ex.Message}"
+				};
+
+				return StatusCode(500, response);
+			}
+		}
+
+
+
+		//private static string DecryptData(string key, string iv, string encryptedData)
+		//{
+		//    using (var aesAlg = Aes.Create())
+		//    {
+		//        aesAlg.Key = Encoding.UTF8.GetBytes(key);
+		//        aesAlg.IV = Encoding.UTF8.GetBytes(iv);
+		//        aesAlg.Mode = CipherMode.CBC;
+		//        aesAlg.Padding = PaddingMode.PKCS7;
+
+		//        var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
+		//        var encryptedBytes = Convert.FromBase64String(encryptedData);
+		//        var decryptedBytes = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
+
+		//        return Encoding.UTF8.GetString(decryptedBytes);
+		//    }
+		//}
+		private static string DecryptData(string key, string iv, string encryptedData)
+		{
+			try
+			{
+				// URL-decode only if the data has been URL-encoded
+				var decodedData = encryptedData.Contains("%")
+					? Uri.UnescapeDataString(encryptedData)
+					: encryptedData;
+
+				// Decode Base64 and decrypt
+				var encryptedBytes = Convert.FromBase64String(decodedData);
+				using (var aesAlg = Aes.Create())
+				{
+					aesAlg.Key = Encoding.UTF8.GetBytes(key);
+					aesAlg.IV = Encoding.UTF8.GetBytes(iv);
+					aesAlg.Mode = CipherMode.CBC;
+					aesAlg.Padding = PaddingMode.PKCS7;
+
+					var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
+					var decryptedBytes = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
+
+					return Encoding.UTF8.GetString(decryptedBytes);
+				}
+			}
+			catch (FormatException ex)
+			{
+				throw new ArgumentException($"Invalid Base64 format: {ex.Message}");
+			}
+			catch (CryptographicException ex)
+			{
+				throw new ArgumentException($"Decryption failed: {ex.Message}");
+			}
+			catch (Exception ex)
+			{
+				throw new ArgumentException($"An error occurred during decryption: {ex.Message}");
+			}
+		}
+
+
+
+		[HttpPost("InviteAgent")]
         public async Task<IActionResult> InviteAgent([FromBody] InviteAgentRequest request)
         {
             try
@@ -423,16 +531,16 @@ namespace Varadhi.Controllers
                 _context.SupportInvitations.Add(invitation);
                 await _context.SaveChangesAsync();
 
-                // Prepare the data to encrypt
-                var dataToEncrypt = new
-                {
-                    tenantId = request.TenantId,
-                    roleId = request.RoleId,
-                    invitationId = invitationId
+				// Prepare the data to encrypt
+				var dataToEncrypt = new Dictionary<string, string>
+                 {
+	                { "tenantId", request.TenantId.ToString() },
+	                { "roleId", request.RoleId.ToString() },
+	                { "invitationId", invitationId }
                 };
 
-                // Encrypt the data using a secret key
-                var encryptedData = EncryptData(EncryptionKey, FixedIV, JsonSerializer.Serialize(dataToEncrypt));
+				// Encrypt the data using a secret key
+				var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
 				if (string.IsNullOrEmpty(encryptedData))
 				{
 					throw new ArgumentException("Missing 'encryptedData' in request body.");
@@ -440,7 +548,7 @@ namespace Varadhi.Controllers
 				Console.WriteLine("Encrypted Data: " + encryptedData);
 
 				// Generate the invitation link
-				var invitationLink = $"https://agent.com/?invitation={Uri.EscapeDataString(encryptedData)}";
+				var invitationLink = $"https://agent.com/?invitation={encryptedData}";
 
                 // Prepare email content for the invitation
                 var emailData = new EmailData
