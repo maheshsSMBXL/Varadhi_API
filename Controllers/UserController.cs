@@ -321,7 +321,6 @@ namespace Varadhi.Controllers
 				return BadRequest(result);
 			}
 		}
-		[Authorize]
 		[HttpGet("getAgentById/{agentId}")]
 		public async Task<IActionResult> GetAgentById(string agentId)
 		{
