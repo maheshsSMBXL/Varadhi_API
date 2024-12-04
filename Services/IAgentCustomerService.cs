@@ -22,5 +22,6 @@ namespace Varadhi.Services
 		Task<CustomerResponse> PostCustomerInfo(CustomerRequest request);
 		Task<CustomerResponse> GetCustomerInfo(string customerId);
 		Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId);
+		Task<CustomerResponse> AddCustomerFeedbackAsync(CustomerFeedbackDto feedbackDto);
 	}
 }

@@ -874,69 +874,162 @@ namespace Varadhi.Controllers
                 return StatusCode(500, response);
             }
         }
-        [HttpPost("AutoAssignTickets")]
-        public async Task<IActionResult> AutoAssignTickets()
-        {
-            var response = new AutoAssignResponse();
-            var unassignedTickets = await _context.SupportTickets
-                .Where(t => t.AssignedTo == "Unassigned" && t.Destination == "offline")
-                .ToListAsync();
+		//[HttpPost("AutoAssignTickets")]
+		//public async Task<IActionResult> AutoAssignTickets()
+		//{
+		//    var response = new AutoAssignResponse();
+		//    var unassignedTickets = await _context.SupportTickets
+		//        .Where(t => t.AssignedTo == "Unassigned" && t.Destination == "offline")
+		//        .ToListAsync();
 
-            var agents = await _context.SupportAgents
-                .Where(a => a.Status == "offline")
-                .OrderBy(a => a.AgentId)  // Sort as needed
-                .ToListAsync();
+		//    var agents = await _context.SupportAgents
+		//        .Where(a => a.Status == "offline")
+		//        .OrderBy(a => a.AgentId)  // Sort as needed
+		//        .ToListAsync();
 
-            if (unassignedTickets.Count > 0 && agents.Count > 0)
-            {
-                foreach (var ticket in unassignedTickets)
-                {
-                    // Find the agent with the least number of assigned tickets
-                    var leastLoadedAgent = await _context.SupportTickets
-                        .Where(t => t.AssignedTo != "Unassigned")
-                        .GroupBy(t => t.AssignedTo)
-                        .OrderBy(g => g.Count())
-                        .FirstOrDefaultAsync();
+		//    if (unassignedTickets.Count > 0 && agents.Count > 0)
+		//    {
+		//        foreach (var ticket in unassignedTickets)
+		//        {
+		//            // Find the agent with the least number of assigned tickets
+		//            var leastLoadedAgent = await _context.SupportTickets
+		//                .Where(t => t.AssignedTo != "Unassigned")
+		//                .GroupBy(t => t.AssignedTo)
+		//                .OrderBy(g => g.Count())
+		//                .FirstOrDefaultAsync();
 
-                    if (leastLoadedAgent != null)
-                    {
-                        var agentId = leastLoadedAgent.Key;  // Agent with the least tickets
+		//            if (leastLoadedAgent != null)
+		//            {
+		//                var agentId = leastLoadedAgent.Key;  // Agent with the least tickets
 
-                        // Assign the ticket to this agent
-                        var ticketToAssign = await _context.SupportTickets
-                            .FirstOrDefaultAsync(t => t.TicketId == ticket.TicketId && t.AssignedTo == "Unassigned");
+		//                // Assign the ticket to this agent
+		//                var ticketToAssign = await _context.SupportTickets
+		//                    .FirstOrDefaultAsync(t => t.TicketId == ticket.TicketId && t.AssignedTo == "Unassigned");
 
-                        if (ticketToAssign != null)
-                        {
-                            ticketToAssign.AssignedTo = agentId.ToString();
-                            _context.SupportTickets.Update(ticketToAssign);
-                        }
+		//                if (ticketToAssign != null)
+		//                {
+		//                    ticketToAssign.AssignedTo = agentId.ToString();
+		//                    _context.SupportTickets.Update(ticketToAssign);
+		//                }
 
-                        // Mark success
-                        response.Status = "success";
-                        response.Message = "Unassigned tickets have been successfully distributed to agents.";
-                    }
-                    else
-                    {
-                        // No suitable agent found
-                        response.Status = "error";
-                        response.Message = "No suitable agent found for assignment.";
-                    }
-                }
-            }
-            else
-            {
-                // No tickets or agents available
-                response.Status = "error";
-                response.Message = "No unassigned tickets or available agents found.";
-            }
+		//                // Mark success
+		//                response.Status = "success";
+		//                response.Message = "Unassigned tickets have been successfully distributed to agents.";
+		//            }
+		//            else
+		//            {
+		//                // No suitable agent found
+		//                response.Status = "error";
+		//                response.Message = "No suitable agent found for assignment.";
+		//            }
+		//        }
+		//    }
+		//    else
+		//    {
+		//        // No tickets or agents available
+		//        response.Status = "error";
+		//        response.Message = "No unassigned tickets or available agents found.";
+		//    }
 
-            // Save changes to the database
-            await _context.SaveChangesAsync();
+		//    // Save changes to the database
+		//    await _context.SaveChangesAsync();
 
-            return Ok(response);
-        }
-        [HttpPost("ResolveTicketEmail")]
+		//    return Ok(response);
+		//}
+		// Define a class to hold agent ticket counts
+		// Define a class to hold agent ticket counts
+		public class AgentTicketCount
+		{
+			public string AgentId { get; set; }
+			public int TicketCount { get; set; }
+		}
+
+		[HttpPost("AutoAssignTickets")]
+		public async Task<IActionResult> AutoAssignTickets([FromQuery] string tenantId)
+		{
+			var response = new AutoAssignResponse();
+
+			// Fetch unassigned tickets for the given tenant
+			var unassignedTickets = await _context.SupportTickets
+				.Where(t => t.AssignedTo == "Unassigned" && t.Destination == "offline" && t.TenantId.ToString() == tenantId)
+				.ToListAsync();
+
+			// Fetch agents for the given tenant (removed the 'offline' status filter)
+			var agents = await _context.SupportAgents
+				.Where(a => a.TenantId == tenantId)
+				.OrderBy(a => a.AgentId)
+				.ToListAsync();
+
+			if (unassignedTickets.Count > 0 && agents.Count > 0)
+			{
+				// Prepare a list to hold agent IDs and their ticket counts
+				var agentIds = agents.Select(a => a.AgentId.ToString()).ToList();
+
+				var agentTicketCounts = await _context.SupportTickets
+					.Where(t => agentIds.Contains(t.AssignedTo) && t.TenantId.ToString() == tenantId)
+					.GroupBy(t => t.AssignedTo)
+					.Select(g => new AgentTicketCount { AgentId = g.Key, TicketCount = g.Count() })
+					.ToListAsync();
+
+				// Add agents with zero tickets
+				foreach (var agentId in agentIds)
+				{
+					if (!agentTicketCounts.Any(a => a.AgentId == agentId))
+					{
+						agentTicketCounts.Add(new AgentTicketCount { AgentId = agentId, TicketCount = 0 });
+					}
+				}
+
+				foreach (var ticket in unassignedTickets)
+				{
+					// Find the agent with the least number of assigned tickets
+					var leastLoadedAgent = agentTicketCounts.OrderBy(a => a.TicketCount).FirstOrDefault();
+
+					if (leastLoadedAgent != null)
+					{
+						var agentId = leastLoadedAgent.AgentId;
+
+						// Assign the ticket to this agent
+						var ticketToAssign = await _context.SupportTickets
+							.FirstOrDefaultAsync(t => t.TicketId == ticket.TicketId && t.AssignedTo == "Unassigned" && t.TenantId.ToString() == tenantId);
+
+						if (ticketToAssign != null)
+						{
+							ticketToAssign.AssignedTo = agentId;
+							_context.SupportTickets.Update(ticketToAssign);
+
+							// Update the agent's ticket count
+							leastLoadedAgent.TicketCount++;
+						}
+
+						// Mark success
+						response.Status = "success";
+						response.Message = "Unassigned tickets have been successfully distributed to agents.";
+					}
+					else
+					{
+						// No suitable agent found
+						response.Status = "error";
+						response.Message = "No suitable agent found for assignment.";
+						break; // Exit the loop if no agent is found
+					}
+				}
+
+				// Save changes to the database
+				await _context.SaveChangesAsync();
+
+				return Ok(response);
+			}
+			else
+			{
+				// No tickets or agents available
+				response.Status = "error";
+				response.Message = "No unassigned tickets or available agents found.";
+				return Ok(response);
+			}
+		}
+
+		[HttpPost("ResolveTicketEmail")]
         public async Task<IActionResult> ResolveTicketEmail([FromBody] EmailData data)
         {
             var response = new { status = "error", message = "", error = "" };
@@ -989,7 +1082,7 @@ namespace Varadhi.Controllers
 
             try
             {
-                var ticketInfo = await _context.SupportTickets.FirstOrDefaultAsync(a => a.TenantId == ticketId);
+                var ticketInfo = await _context.SupportTickets.FirstOrDefaultAsync(a => a.TicketId == ticketId);
 
                 if (ticketInfo != null)
                 {

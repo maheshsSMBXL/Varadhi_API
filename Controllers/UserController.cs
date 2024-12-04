@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Azure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
 using Varadhi.Data;
@@ -10,14 +12,16 @@ namespace Varadhi.Controllers
 {
     public class UserController : ControllerBase
     {
-        private readonly IAgentService _agentService;
+		private readonly ApplicationDbContext _context;
+		private readonly IAgentService _agentService;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
 		private readonly IAgentCustomerService _agentCustomerService;
         private readonly IChatService _chatService;
-		public UserController(IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService,IChatService chatService) 
+		public UserController(ApplicationDbContext context,IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService,IChatService chatService) 
         {
-            _agentService = agentService;
+			_context = context;
+			_agentService = agentService;
             _emailService = emailService;
             _configuration = configuration;
 			_agentCustomerService = agentCustomerService;
@@ -405,6 +409,71 @@ namespace Varadhi.Controllers
 			else
 				return NotFound(response); // Returns HTTP 404 if customer is not found
 		}
+		[HttpPost("PostCustomerFeedback")]
+		public async Task<IActionResult> PostCustomerFeedback([FromBody] CustomerFeedbackDto feedbackDto)
+		{
+
+			var response = await _agentCustomerService.AddCustomerFeedbackAsync(feedbackDto);
+			if (response.Success)
+				return Ok(response); // Returns HTTP 200 with response
+			else
+				return NotFound(response); // Returns HTTP 404 if customer is not found
+		}
+
+		[HttpGet("getagentStats/{agentId}")]
+		public async Task<ActionResult<AgentStatsDto>> GetAgentStats(string agentId, DateTime startDate, DateTime endDate)
+		{
+			// Ensure the dates are date-only (time component set to 00:00:00)
+			DateTime start = startDate.Date;
+			DateTime end = endDate.Date.AddDays(1); // Include the end date in the range
+
+			var totalCustomersQuery =
+				from a in _context.SupportAgentCustomerAssignment
+				join r in _context.SupportCustomerRatings on new { a.AgentId, a.CustomerId } equals new { r.AgentId, r.CustomerId } into ratings
+				from r in ratings.DefaultIfEmpty()
+				where a.AgentId == agentId && a.AssignedAt >= start && a.AssignedAt < end
+				group new { a, r } by a.CustomerId into g
+				select new
+				{
+					CustomerId = g.Key,
+					Rating = g.Max(x => x.r != null ? x.r.Rating : 0)
+				};
+
+			var totalCustomers = await totalCustomersQuery.CountAsync();
+			var totalPossibleRatingPoints = totalCustomers * 5;
+			var totalRatingPointsReceived = await totalCustomersQuery.SumAsync(x => x.Rating);
+			var customerSatisfactionRatePercentage = totalPossibleRatingPoints > 0
+				? (totalRatingPointsReceived * 100.0) / totalPossibleRatingPoints
+				: 0.0;
+
+			var ticketStatsQuery =
+				from t in _context.SupportTickets
+				where t.AssignedTo == agentId
+				group t by t.AssignedTo into g
+				select new
+				{
+					AgentId = g.Key,
+					OpenTickets = g.Count(t => t.Status == "Open"),
+					ClosedTickets = g.Count(t => t.Status == "Closed")
+				};
+
+			var ticketStats = await ticketStatsQuery.FirstOrDefaultAsync();
+
+			var result = new AgentStatsDto
+			{
+				AgentId = agentId,
+				TotalConnectedCustomers = totalCustomers,
+				TotalPossibleRatingPoints = totalPossibleRatingPoints,
+				TotalRatingPointsReceived = totalRatingPointsReceived,
+				CustomerSatisfactionRatePercentage = customerSatisfactionRatePercentage,
+				OpenTickets = ticketStats?.OpenTickets ?? 0,
+				ClosedTickets = ticketStats?.ClosedTickets ?? 0
+			};
+
+			return Ok(result);
+		}
+
+
 		private string HashPassword(string password)
         {
             using (var sha256 = SHA256.Create())

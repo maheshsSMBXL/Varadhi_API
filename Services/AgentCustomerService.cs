@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Http.HttpResults;
 namespace Varadhi.Services
 {
 	public class AgentCustomerService : IAgentCustomerService
@@ -773,6 +774,52 @@ namespace Varadhi.Services
 					Success = false,
 					Message = "An error occurred while retrieving the customer details.",
 					
+				};
+			}
+		}
+
+		public async Task<CustomerResponse> AddCustomerFeedbackAsync(CustomerFeedbackDto feedbackDto)
+		{
+			try
+			{
+				// Validate feedback data
+				if (feedbackDto == null || feedbackDto.Rating < 1 || feedbackDto.Rating > 5)
+				{
+					return new CustomerResponse
+					{
+						Success = false,
+						Message = "Invalid feedback data."
+					};
+				}
+
+				// Set creation timestamp
+				var feedback = new SupportCustomerRating
+				{
+					CustomerId = feedbackDto.CustomerId,
+					AgentId = feedbackDto.AgentId,
+					Rating = feedbackDto.Rating,
+					CreateDate = DateTime.UtcNow  // Set creation timestamp
+				};
+
+
+				// Add feedback to the database
+				_context.SupportCustomerRatings.Add(feedback);
+				await _context.SaveChangesAsync();
+
+				return new CustomerResponse
+				{
+					Success = true,
+					Message = "Feedback submitted successfully!"
+				};
+			}
+			catch (Exception ex)
+			{
+				// Return error response
+				return new CustomerResponse
+				{
+					Success = false,
+					Message = "An error occurred while processing the feedback.",
+				
 				};
 			}
 		}

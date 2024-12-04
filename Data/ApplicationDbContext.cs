@@ -25,7 +25,7 @@ namespace Varadhi.Data
         public DbSet<SupportEmailVerifications> SupportEmailVerifications { get; set; }
         public DbSet<SupportFAQSection> SupportFAQSection { get; set; }
         public DbSet<CustomerDetailInfo> CustomerDetailInfo { get; set; }
-
+		public DbSet<SupportCustomerRating> SupportCustomerRatings { get; set; }
 		public override int SaveChanges()
         {
             return base.SaveChanges();
