@@ -213,7 +213,7 @@ namespace Varadhi.Controllers
 			var result = await _agentCustomerService.GetAllTicketsAsync(request);
 
 			if (result.Success)
-				return Ok(new { status = "success", message = "Tickets retrieved successfully.", tickets = result.Tickets });
+				return Ok(new { status = "success", message = "Tickets retrieved successfully.", tickets = result.Tickets,totaltickets = result.TotalCount });
 			else
 				return NotFound(new { status = "error", message = result.Message });
 		}

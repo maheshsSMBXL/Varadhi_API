@@ -874,70 +874,7 @@ namespace Varadhi.Controllers
                 return StatusCode(500, response);
             }
         }
-		//[HttpPost("AutoAssignTickets")]
-		//public async Task<IActionResult> AutoAssignTickets()
-		//{
-		//    var response = new AutoAssignResponse();
-		//    var unassignedTickets = await _context.SupportTickets
-		//        .Where(t => t.AssignedTo == "Unassigned" && t.Destination == "offline")
-		//        .ToListAsync();
-
-		//    var agents = await _context.SupportAgents
-		//        .Where(a => a.Status == "offline")
-		//        .OrderBy(a => a.AgentId)  // Sort as needed
-		//        .ToListAsync();
-
-		//    if (unassignedTickets.Count > 0 && agents.Count > 0)
-		//    {
-		//        foreach (var ticket in unassignedTickets)
-		//        {
-		//            // Find the agent with the least number of assigned tickets
-		//            var leastLoadedAgent = await _context.SupportTickets
-		//                .Where(t => t.AssignedTo != "Unassigned")
-		//                .GroupBy(t => t.AssignedTo)
-		//                .OrderBy(g => g.Count())
-		//                .FirstOrDefaultAsync();
-
-		//            if (leastLoadedAgent != null)
-		//            {
-		//                var agentId = leastLoadedAgent.Key;  // Agent with the least tickets
-
-		//                // Assign the ticket to this agent
-		//                var ticketToAssign = await _context.SupportTickets
-		//                    .FirstOrDefaultAsync(t => t.TicketId == ticket.TicketId && t.AssignedTo == "Unassigned");
-
-		//                if (ticketToAssign != null)
-		//                {
-		//                    ticketToAssign.AssignedTo = agentId.ToString();
-		//                    _context.SupportTickets.Update(ticketToAssign);
-		//                }
-
-		//                // Mark success
-		//                response.Status = "success";
-		//                response.Message = "Unassigned tickets have been successfully distributed to agents.";
-		//            }
-		//            else
-		//            {
-		//                // No suitable agent found
-		//                response.Status = "error";
-		//                response.Message = "No suitable agent found for assignment.";
-		//            }
-		//        }
-		//    }
-		//    else
-		//    {
-		//        // No tickets or agents available
-		//        response.Status = "error";
-		//        response.Message = "No unassigned tickets or available agents found.";
-		//    }
-
-		//    // Save changes to the database
-		//    await _context.SaveChangesAsync();
-
-		//    return Ok(response);
-		//}
-		// Define a class to hold agent ticket counts
-		// Define a class to hold agent ticket counts
+		
 		public class AgentTicketCount
 		{
 			public string AgentId { get; set; }
@@ -1030,52 +967,76 @@ namespace Varadhi.Controllers
 		}
 
 		[HttpPost("ResolveTicketEmail")]
-        public async Task<IActionResult> ResolveTicketEmail([FromBody] EmailData data)
-        {
-            var response = new { status = "error", message = "", error = "" };
+		public async Task<IActionResult> ResolveTicketEmail([FromBody] ResolveEmailData data)
+		{
+			var response = new { status = "error", message = "", error = "" };
 
-            try
-            {
-                // Set BCC and CC if provided, else default to empty
-                var bccInfo = string.IsNullOrEmpty(data.Bcc) ? null : data.Bcc;
-                var ccInfo = string.IsNullOrEmpty(data.Cc) ? null : data.Cc;
+			try
+			{
+				// Set BCC and CC if provided, else default to empty
+				var bccInfo = string.IsNullOrEmpty(data.Bcc) ? null : data.Bcc;
+				var ccInfo = string.IsNullOrEmpty(data.Cc) ? null : data.Cc;
 
-                // Setup email client
-                var mailMessage = new EmailData
-                {
-                    From = data.From,
-                    Subject = data.Subject,
-                    Body = data.Body,
-                    Type = "html",
-                    Bcc = bccInfo,
-                    Cc = ccInfo
-                };
+				// Setup email client
+				var mailMessage = new EmailData
+				{
+					From = data.From,
+					Subject = data.Subject,
+					Body = data.Body,
+					Type = "html",
+					Bcc = bccInfo,
+					To = data.To,
+					Cc = ccInfo
+				};
 
-                // Send the email asynchronously
-                await _emailService.SendEmailAsync(mailMessage);
+				// Send the email asynchronously
+				await _emailService.SendEmailAsync(mailMessage);
 
-                // Success response
-                response = new
-                {
-                    status = "success",
-                    message = "Email sent successfully for ticket resolution.",
-                    error = ""
-                };
-            }
-            catch (Exception ex)
-            {
-                // Error response
-                response = new
-                {
-                    status = "error",
-                    message = "Failed to send email.",
-                    error = ex.Message
-                };
-            }
+				// Find the ticket using TicketId
+				var ticket = await _context.SupportTickets.FindAsync(data.Ticketid);
 
-            return Ok(response);
-        }
-        [HttpGet("getDetailedTicketInfo/{ticketId}")]
+				if (ticket != null)
+				{
+					// Update the status to "Closed"
+					ticket.Status = "Closed";
+
+					// Save changes to the database
+					await _context.SaveChangesAsync();
+
+					// Include ticket closure message in the response
+					response = new
+					{
+						status = "success",
+						message = "Email sent successfully for ticket resolution. The ticket has been closed.",
+						error = ""
+					};
+				}
+				else
+				{
+					// Ticket not found message
+					response = new
+					{
+						status = "error",
+						message = "Email sent, but the ticket was not found.",
+						error = ""
+					};
+				}
+			}
+			catch (Exception ex)
+			{
+				// Error response
+				response = new
+				{
+					status = "error",
+					message = "Failed to send email.",
+					error = ex.Message
+				};
+			}
+
+			return Ok(response);
+		}
+
+		[HttpGet("getDetailedTicketInfo/{ticketId}")]
         public async Task<IActionResult> GetDetailedTicketInfo(int ticketId)
         {
             var response = new TicketDetailsResponse();

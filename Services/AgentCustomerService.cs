@@ -296,20 +296,75 @@ namespace Varadhi.Services
 				return (false, $"An error occurred while raising the ticket: {ex.Message}");
 			}
 		}
-		public async Task<(bool Success, string Message, List<TicketResponse> Tickets)> GetAllTicketsAsync(TicketRequest request)
+		//public async Task<(bool Success, string Message, List<TicketResponse> Tickets)> GetAllTicketsAsync(TicketRequest request)
+		//{
+		//	try
+		//	{
+		//		if (request.TenantId <= 0)
+		//		{
+		//			return (false, "Invalid TenantId.", null);
+		//		}
+		//		// Calculate offset and limit
+		//		int offset = request.Start - 1;
+		//		int limit = request.End - request.Start + 1;
+
+		//		// Query with optional filters
+		//		//var query = _context.SupportTickets.AsQueryable();
+		//		var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId);
+
+		//		if (!string.IsNullOrEmpty(request.AssignedTo))
+		//			query = query.Where(t => t.AssignedTo == request.AssignedTo);
+
+		//		if (!string.IsNullOrEmpty(request.Status))
+		//			query = query.Where(t => t.Status == request.Status);
+
+		//		if (!string.IsNullOrEmpty(request.Destination))
+		//			query = query.Where(t => t.Destination == request.Destination);
+
+		//		// Apply pagination
+		//		var tickets = await query
+		//			.OrderByDescending(t => t.CreatedAt)
+		//			.Skip(offset)
+		//			.Take(limit)
+		//			.Select(t => new TicketResponse
+		//			{
+		//				TicketId = t.TicketId,
+		//				TenantId = (int)t.TenantId,
+		//				CustomerId = t.CustomerId,
+		//				CustomerName = t.CustomerName,
+		//				Comments = t.Comments,
+		//				Complaint = t.Complaint,
+		//				Status = t.Status,
+		//				AssignedTo = t.AssignedTo,
+		//				Destination = t.Destination,
+		//				CreatedAt = (DateTime)t.CreatedAt
+		//			})
+		//			.ToListAsync();
+
+		//		if (tickets.Any())
+		//			return (true, string.Empty, tickets);
+		//		else
+		//			return (false, "No tickets found within the specified range and filters.", new List<TicketResponse>());
+		//	}
+		//	catch (Exception ex)
+		//	{
+		//		return (false, $"An error occurred: {ex.Message}", null);
+		//	}
+		//}
+		public async Task<(bool Success, string Message, List<TicketResponse> Tickets, int TotalCount)> GetAllTicketsAsync(TicketRequest request)
 		{
 			try
 			{
 				if (request.TenantId <= 0)
 				{
-					return (false, "Invalid TenantId.", null);
+					return (false, "Invalid TenantId.", null, 0);
 				}
+
 				// Calculate offset and limit
 				int offset = request.Start - 1;
 				int limit = request.End - request.Start + 1;
 
 				// Query with optional filters
-				//var query = _context.SupportTickets.AsQueryable();
 				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId);
 
 				if (!string.IsNullOrEmpty(request.AssignedTo))
@@ -320,6 +375,9 @@ namespace Varadhi.Services
 
 				if (!string.IsNullOrEmpty(request.Destination))
 					query = query.Where(t => t.Destination == request.Destination);
+
+				// Get total count before pagination
+				int totalCount = await query.CountAsync();
 
 				// Apply pagination
 				var tickets = await query
@@ -342,15 +400,16 @@ namespace Varadhi.Services
 					.ToListAsync();
 
 				if (tickets.Any())
-					return (true, string.Empty, tickets);
+					return (true, string.Empty, tickets, totalCount);
 				else
-					return (false, "No tickets found within the specified range and filters.", new List<TicketResponse>());
+					return (false, "No tickets found within the specified range and filters.", new List<TicketResponse>(), totalCount);
 			}
 			catch (Exception ex)
 			{
-				return (false, $"An error occurred: {ex.Message}", null);
+				return (false, $"An error occurred: {ex.Message}", null, 0);
 			}
 		}
+
 		public async Task<(bool Success, string Message, List<TicketResponse> Tickets)> GetTicketsByCustomerIdAsync(TicketRequestCustomer request)
 		{
 			try
