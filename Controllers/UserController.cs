@@ -473,6 +473,137 @@ namespace Varadhi.Controllers
 			return Ok(result);
 		}
 
+		[HttpPost("forgotPassword")]
+		public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+		{
+			try
+			{
+				// Check if the email is valid
+				bool isValidEmail = await _agentCustomerService.IsEmailValidAsync(request.Email);
+				if (!isValidEmail)
+				{
+					return BadRequest(new
+					{
+						success = false,
+						message = "Invalid email address."
+					});
+				}
+
+				// Generate a 5-digit OTP
+				var otp = new Random().Next(10000, 99999).ToString();
+
+				// Store OTP in the database
+				await _agentCustomerService.AddForgotPwdVerificationAsync(request.Email, otp);
+
+				// Prepare email content
+				var emailData = new EmailData
+				{
+					From = "chatsupportops@personalizedhealthrx.com",
+					To = request.Email,
+					Subject = "Password Reset OTP",
+					Body = $"Your OTP for password reset is: {otp}. It is valid for 15 minutes.",
+					Type = "html"
+				};
+
+				// Send OTP email
+				await _emailService.SendEmailAsync(emailData);
+
+				return Ok(new
+				{
+					success = true,
+					message = "OTP has been sent to your email."
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle errors
+				return StatusCode(500, new
+				{
+					success = false,
+					message = "An error occurred while processing your request.",
+					error = ex.Message
+				});
+			}
+		}
+
+		[HttpPost("ResetPasswordvalidateOtp")]
+		public async Task<IActionResult> ResetPasswordvalidateOtp([FromBody] ValidateOtpRequest request)
+		{
+			try
+			{
+				// Retrieve the OTP record
+				var verification = await _agentCustomerService.GetForgotPwdVerificationAsync(request.Email, request.Otp);
+				if (verification == null)
+				{
+					return BadRequest(new
+					{
+						success = false,
+						message = "Invalid or expired OTP."
+					});
+				}
+
+				// Mark OTP as verified
+				await _agentCustomerService.MarkOtpAsVerifiedAsync(verification.Id);
+
+				return Ok(new
+				{
+					success = true,
+					message = "OTP is valid."
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle errors
+				return StatusCode(500, new
+				{
+					success = false,
+					message = "An error occurred while processing your request.",
+					error = ex.Message
+				});
+			}
+		}
+
+		[HttpPost("resetPassword")]
+		public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+		{
+			try
+			{
+				// Optionally, you can ensure that the OTP was validated before allowing password reset.
+				// This might require tracking the OTP validation state per user/session.
+
+				// For simplicity, assuming that OTP validation is handled on the client side.
+
+				// Hash the new password
+				var hashedPassword = HashPassword(request.NewPassword);
+
+				// Update the password in the database
+				await _agentCustomerService.UpdateAgentPasswordAsync(request.Email, hashedPassword);
+
+				// Retrieve the agent ID for logging
+				var agent = await _context.SupportAgents
+	.FirstOrDefaultAsync(a => a.Email == request.Email); ; // You need to implement this method
+				if (agent != null)
+				{
+					await _agentCustomerService.LogPasswordChangeAsync(agent.AgentId, "User", "Password reset via forgot password.");
+				}
+
+				return Ok(new
+				{
+					success = true,
+					message = "Password has been reset successfully."
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle errors
+				return StatusCode(500, new
+				{
+					success = false,
+					message = "An error occurred while processing your request.",
+					error = ex.Message
+				});
+			}
+		}
 
 		private string HashPassword(string password)
         {

@@ -23,5 +23,13 @@ namespace Varadhi.Services
 		Task<CustomerResponse> GetCustomerInfo(string customerId);
 		Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId);
 		Task<CustomerResponse> AddCustomerFeedbackAsync(CustomerFeedbackDto feedbackDto);
+
+		//forgot password for agent
+		Task<bool> IsEmailValidAsync(string email);
+		Task AddForgotPwdVerificationAsync(string email, string verificationCode);
+		Task<SupportAgentForgotPwdVerification> GetForgotPwdVerificationAsync(string email, string verificationCode);
+		Task MarkOtpAsVerifiedAsync(int verificationId);
+		Task UpdateAgentPasswordAsync(string email, string newHashedPassword);
+		Task LogPasswordChangeAsync(string agentId, string changedBy, string remarks);
 	}
 }

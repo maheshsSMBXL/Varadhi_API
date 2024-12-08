@@ -22,6 +22,10 @@ namespace Varadhi.Data
 		DbSet<CustomerDetailInfo> CustomerDetailInfo { get; set; }
 
         DbSet<SupportCustomerRating> SupportCustomerRatings { get; set; }
+
+        DbSet<SupportAgentForgotPwdVerification> supportAgentForgotPwdVerifications { get; set; }
+
+        DbSet<PasswordChangeLog> PasswordChangeLogs { get; set; }
 		int SaveChanges();
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

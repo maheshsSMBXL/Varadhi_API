@@ -907,7 +907,68 @@ namespace Varadhi.Services
 
 			return new JwtSecurityTokenHandler().WriteToken(token);
 		}
+		//password 
+		public async Task<bool> IsEmailValidAsync(string email)
+		{
+			return await _context.SupportAgents.AnyAsync(a => a.Email == email);
+		}
 
+		public async Task AddForgotPwdVerificationAsync(string email, string verificationCode)
+		{
+			var verification = new SupportAgentForgotPwdVerification
+			{
+				Email = email,
+				VerificationCode = verificationCode,
+				IsVerified = false,
+				CreatedAt = DateTime.UtcNow,
+				ExpiredAt = DateTime.UtcNow.AddMinutes(15) // OTP valid for 15 minutes
+			};
+
+			_context.supportAgentForgotPwdVerifications.Add(verification);
+			await _context.SaveChangesAsync();
+		}
+
+		public async Task<SupportAgentForgotPwdVerification> GetForgotPwdVerificationAsync(string email, string verificationCode)
+		{
+			return await _context.supportAgentForgotPwdVerifications
+				.FirstOrDefaultAsync(v => v.Email == email && v.VerificationCode == verificationCode && !v.IsVerified && v.ExpiredAt > DateTime.UtcNow);
+		}
+
+		public async Task MarkOtpAsVerifiedAsync(int verificationId)
+		{
+			var verification = await _context.supportAgentForgotPwdVerifications.FindAsync(verificationId);
+			if (verification != null)
+			{
+				verification.IsVerified = true;
+				_context.supportAgentForgotPwdVerifications.Update(verification);
+				await _context.SaveChangesAsync();
+			}
+		}
+
+		public async Task UpdateAgentPasswordAsync(string email, string newHashedPassword)
+		{
+			var agent = await _context.SupportAgents.FirstOrDefaultAsync(a => a.Email == email);
+			if (agent != null)
+			{
+				agent.Password = newHashedPassword;
+				_context.SupportAgents.Update(agent);
+				await _context.SaveChangesAsync();
+			}
+		}
+
+		public async Task LogPasswordChangeAsync(string agentId, string changedBy, string remarks)
+		{
+			var log = new PasswordChangeLog
+			{
+				AgentId = agentId,
+				ChangedAt = DateTime.UtcNow,
+				ChangedBy = changedBy,
+				Remarks = remarks
+			};
+
+			_context.PasswordChangeLogs.Add(log);
+			await _context.SaveChangesAsync();
+		}
 		private string ComputeSha256Hash(string rawData)
 		{
 			using (SHA256 sha256Hash = SHA256.Create())
