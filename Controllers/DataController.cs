@@ -14,6 +14,7 @@ using Agri_Smart.Helpers;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Varadhi.Controllers
 {
@@ -1000,6 +1001,29 @@ namespace Varadhi.Controllers
 					// Update the status to "Closed"
 					ticket.Status = "Closed";
 
+					// Create a new SupportTicketResponse record
+					var ticketResponse = new SupportTicketResponse
+					{
+						TicketId = data.Ticketid, // Set appropriate TenantId
+                        TenantId = (await _context.SupportTickets
+									.Where(t => t.TicketId == data.Ticketid)
+									   .Select(t => t.TenantId)
+									.FirstOrDefaultAsync()),
+						CustomerId = (await _context.SupportTickets
+	                                .Where(t => t.TicketId == data.Ticketid)
+                                   	.Select(t => t.CustomerId)
+	                                .FirstOrDefaultAsync()), // Set appropriate CustomerId
+						AgentId = await _context.SupportTickets
+                               	  .Where(t => t.TicketId == data.Ticketid)
+	                              .Select(t => t.AssignedTo)
+	                              .FirstOrDefaultAsync(), // Set appropriate AgentId
+						Reply = data.Body, // Store the email body as the reply
+						CreatedAt = DateTime.UtcNow // Set the creation timestamp
+					};
+
+					// Add the response to the database
+					_context.SupportTicketResponse.Add(ticketResponse);
+
 					// Save changes to the database
 					await _context.SaveChangesAsync();
 
@@ -1040,17 +1064,32 @@ namespace Varadhi.Controllers
         public async Task<IActionResult> GetDetailedTicketInfo(int ticketId)
         {
             var response = new TicketDetailsResponse();
-
+            
             try
             {
                 var ticketInfo = await _context.SupportTickets.FirstOrDefaultAsync(a => a.TicketId == ticketId);
+                var replyinfo = (await _context.SupportTicketResponse
+                                    .Where(t => t.TicketId == ticketId)
+                                       .Select(t => t.Reply)
+                                    .FirstOrDefaultAsync());
 
-                if (ticketInfo != null)
+				if (ticketInfo != null)
                 {
                     // Return success response with ticket details
                     response.Status = "success";
                     response.Message = "Ticket details retrieved successfully.";
-                    response.Ticket = ticketInfo;
+                    if(replyinfo != null)
+                    {
+						response.Reply = replyinfo;
+
+                    }
+                    else
+                    {
+                        response.Reply = "";
+
+					}
+
+					response.Ticket = ticketInfo;
                 }
                 else
                 {

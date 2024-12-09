@@ -6,6 +6,8 @@ namespace Varadhi.Models
     {
         public string Status { get; set; }
         public string Message { get; set; }
+
+        public string Reply { get; set; }
         public SupportTickets Ticket { get; set; }
         public string Error { get; set; }
     }

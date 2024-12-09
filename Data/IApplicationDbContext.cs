@@ -26,6 +26,8 @@ namespace Varadhi.Data
         DbSet<SupportAgentForgotPwdVerification> supportAgentForgotPwdVerifications { get; set; }
 
         DbSet<PasswordChangeLog> PasswordChangeLogs { get; set; }
+
+        DbSet<SupportTicketResponse> SupportTicketResponse { get; set; }
 		int SaveChanges();
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
