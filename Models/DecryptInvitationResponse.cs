@@ -8,5 +8,7 @@
         public string RoleId { get; set; }
         public string RoleName { get; set; }
         public string Message { get; set; }
+
+        public string email { get; set; }
     }
 }

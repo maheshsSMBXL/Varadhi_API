@@ -391,14 +391,14 @@ namespace Varadhi.Controllers
 				}
 
 				// Check for required keys
-				if (!decryptedData.ContainsKey("tenantId") || !decryptedData.ContainsKey("roleId"))
+				if (!decryptedData.ContainsKey("tenantId") || !decryptedData.ContainsKey("roleId") || !decryptedData.ContainsKey("email"))
 				{
-					throw new ArgumentException("Decrypted data does not contain 'tenantId' or 'roleId'.");
+					throw new ArgumentException("Decrypted data does not contain'tenantId', 'roleId', or 'email'.");
 				}
 
 				var tenantId = decryptedData["tenantId"];
 				var roleId = decryptedData["roleId"];
-
+				var email = decryptedData["email"];
 				// Fetch tenant from the database
 				var tenant = await _context.SupportTenants.FirstOrDefaultAsync(t => t.TenantId == int.Parse(tenantId));
 				if (tenant == null)
@@ -417,6 +417,15 @@ namespace Varadhi.Controllers
 
 				var roleName = role.RoleName;
 
+				// Verify email existence (optional: depending on business logic)
+				var invitation = await _context.SupportInvitations.FirstOrDefaultAsync(i =>
+					i.InvitationID == decryptedData["invitationId"] && i.Email == email);
+
+				if (invitation == null)
+				{
+					throw new ArgumentException("Invalid invitation or email does not match.");
+				}
+
 				// Success response
 				var response = new DecryptInvitationResponse
 				{
@@ -424,7 +433,8 @@ namespace Varadhi.Controllers
 					TenantId = tenantId,
 					TenantKey = tenantKey,
 					RoleId = roleId,
-					RoleName = roleName
+					RoleName = roleName,
+					email = email
 				};
 
 				return Ok(response);
@@ -537,8 +547,9 @@ namespace Varadhi.Controllers
                  {
 	                { "tenantId", request.TenantId.ToString() },
 	                { "roleId", request.RoleId.ToString() },
-	                { "invitationId", invitationId }
-                };
+	                { "invitationId", invitationId },
+					 { "email", request.Email }
+				};
 
 				// Encrypt the data using a secret key
 				var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
