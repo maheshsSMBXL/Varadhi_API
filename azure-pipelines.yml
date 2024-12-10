@@ -1,0 +1,69 @@
+trigger:
+  batch: 'false'
+  branches:
+    include:
+      - 'main'      
+  paths:
+    include:
+      - ./
+    exclude:
+      - LICENSE
+      - README.md
+
+variables:  
+  - name: 'DotNetCore_SDK_Version'
+    value: '8.0.x'
+
+  - name: 'Azure_ServiceConnection_Sponsorship'    #$(Azure_ServiceConnection)
+    value: 'PHRx_Sponsorship_ServiceConnection'
+  
+  - name: 'Azure_WebApp_Name'          #$(Azure_WebApp_Name)
+    value: 'stage-phrx-chatadmin-api'
+
+ 
+  
+stages:
+# 1) Build Stage
+- stage: BuildAndTest
+  jobs:
+  - template: './azure-pipelines.build-job.yml'
+    parameters:
+      job:
+        name: 'build'
+        displayName: 'Build on Linux'
+      pool:
+        vmImage: 'ubuntu-latest'      
+
+# 2) Stage release
+- stage: Stage
+  displayName: 'Stage Deploy - PHRx API'
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  jobs:
+  - template: './azure-pipelines.deploy-job.yml'
+    parameters:
+      deployment:
+        name: 'deployStage'
+        displayName: 'Stage Deploy'
+      pool:
+        vmImage: 'ubuntu-latest'
+      env: 'Stage'
+      azureServiceConnection: $(Azure_ServiceConnection_Sponsorship)
+      azureWebAppName: $(Azure_WebApp_Name)
+
+# 3) Prod release
+- stage: Prod
+  displayName: 'Prod Deploy - PHRx API'
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  jobs:
+  - template: './azure-pipelines.deploy-job.yml'
+    parameters:
+      deployment:
+        name: 'deployProd'
+        displayName: 'Production Deploy'
+      pool:
+        vmImage: 'ubuntu-latest'
+      env: 'Prod'     
+      azureServiceConnection: $(Azure_ServiceConnection_Sponsorship)
+      azureWebAppName: $(Azure_WebApp_Name_Prod)

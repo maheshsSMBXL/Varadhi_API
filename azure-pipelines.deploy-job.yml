@@ -1,0 +1,36 @@
+parameters:
+  deployment:
+    name: ''
+    displayName: ''
+  pool: ''
+  env: ''
+  azureServiceConnection: ''
+  azureWebAppName: ''
+  acrHostName: ''
+
+jobs:
+- deployment: ${{ parameters.deployment.name }}
+  displayName: ${{ parameters.deployment.displayName }}
+  continueOnError: False
+  pool: ${{ parameters.pool }}  
+  environment: ${{ parameters.env }}
+  strategy:
+      runOnce:
+        deploy:
+          steps:
+          # 2.a) Don't clone the repo
+          - checkout: none
+
+          # 2.b) Download the published build artifact
+          - task: DownloadBuildArtifacts@0
+            inputs:
+              artifactName: drop
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          # 2.c) Publish it to the Azure App Service (uncomment this task if working with app service code)
+          - task: AzureWebApp@1
+            inputs:
+              appType: webAppLinux
+              azureSubscription:  ${{ parameters.azureServiceConnection }} #this is the name of the SPN
+              appName: ${{ parameters.azureWebAppName }} #App Service's unique name
+              package: $(System.ArtifactsDirectory)/**/*.zip

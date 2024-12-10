@@ -1,0 +1,73 @@
+parameters:
+  job:
+    name: ''
+    displayName: ''
+  pool: ''
+  build:
+    configuration: 'Release'
+  installDotNetSdk: True  
+  cacheRestoredNuGetPackages: False    
+  publishPipelineArtifacts: True
+  runDotNetFormatTool: False
+  runTests: True
+
+jobs:
+- job: ${{ parameters.job.name }}
+  displayName: ${{ parameters.job.displayName }}
+  continueOnError: False
+  pool: ${{ parameters.pool }}
+  workspace:
+    clean: all
+  variables:      
+    NUGET_PACKAGES: '$(Pipeline.Workspace)/.nuget/packages' # Environment variable used when caching restored NuGet packages.
+    architectureTestsOutcome: 'failure'
+    unitTestsOutcome: 'failure'
+    integrationTestsOutcome: 'failure'
+    allTestsOutcome: 'failure'
+
+  steps: 
+  # 1.a) Checkout branch 
+  - checkout: self
+    clean: True
+    fetchDepth: 1
+    lfs: False
+
+  # 1.b) Prepare the dotnet sdk 8.0.x
+  - task: UseDotNet@2
+    name: 'install_dotnet_sdk_required_by_application'
+    displayName: 'Build .NET 8 Application'
+    condition: eq(${{ parameters.installDotNetSdk }}, True)
+    inputs:
+      packageType: 'sdk'
+      version: $(DotNetCore_SDK_Version)
+  
+  # 1.d) Restore dependencies
+  - script: >-
+      dotnet restore $(Build.SourcesDirectory)/Varadhi.csproj
+    name: 'restore_nuget_packages'
+    displayName: 'Restore NuGet packages'
+
+  # 1.e) Compile source code using 'dotnet build' command.
+  # See more about this command here: https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build.
+  - script: >-
+      dotnet build $(Build.SourcesDirectory)/Varadhi.csproj
+      --configuration ${{ parameters.build.configuration }}
+      --no-restore
+    name: 'build_sources'
+    displayName: 'Build sources' 
+
+  # 1.w) Publish the app
+  # Uncomment this task if working with app service code
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: publish
+      projects: $(Build.SourcesDirectory)/Varadhi.csproj
+      publishWebProjects: False
+      arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+      zipAfterPublish: True
+
+  #1.z) Publish the app as an artifact
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: drop
