@@ -245,7 +245,7 @@ namespace Varadhi.Controllers
 
                 // Encrypt the data using AES-256
                 var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
-                var invitationLink = $"https://agent.com/?invitation={encryptedData}";
+                var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
 
                 // Prepare email content for the invitation
                 var emailData = new EmailData
