@@ -489,21 +489,26 @@ namespace Varadhi.Services
 			{
 				// Query to get chat history between the agent and customer
 				var chatHistory = await _context.SupportChats
-					.Where(c => c.AgentId == request.AgentId && c.CustomerId == request.CustomerId)
-					.OrderBy(c => c.CreatedAt)
-					.Select(c => new ChatMessage
+				.Where(c => c.AgentId == request.AgentId && c.CustomerId == request.CustomerId)
+				.OrderBy(c => c.CreatedAt)
+				.Join(
+					_context.CustomerDetailInfo,
+					chat => chat.CustomerId,
+					customer => customer.CustomerId,
+						(chat, customer) => new ChatMessage
 					{
-						ChatId = c.ChatId,
-						TenantId = c.TenantId,
-						AgentId = c.AgentId,
-						CustomerId = c.CustomerId,
-						Message = c.Message,
-						Sender = c.Sender,
-						FileUrl = c.FileUrl,
-						FileName = c.FileName,
-						CreatedAt = (DateTime)c.CreatedAt
-					})
-					.ToListAsync();
+				ChatId = chat.ChatId,
+				TenantId = chat.TenantId,
+				AgentId = chat.AgentId,
+				CustomerId = chat.CustomerId,
+				Message = chat.Message,
+				Sender = chat.Sender,
+				FileUrl = chat.FileUrl,
+				FileName = chat.FileName,
+				CustomerName = customer.Name,
+				CreatedAt = (DateTime)chat.CreatedAt
+			})
+		.ToListAsync(); ;
 
 				// Return response
 				if (chatHistory.Any())
@@ -540,15 +545,48 @@ namespace Varadhi.Services
 			try
 			{
 				// Query to get distinct customers for the given agent
+				//var customers = await _context.SupportChats
+				//	.Where(c => c.AgentId == request.AgentId).Join(
+				//	_context.CustomerDetailInfo,
+				//	supportChat => supportChat.CustomerId,
+				//	customerInfo => customerInfo.CustomerId,
+				// (supportChat, customerInfo) => new Customer
+				// {
+				//	 CustomerId = supportChat.CustomerId,
+				//	 CustomerName = customerInfo.Name
+				// }).Distinct().OrderBy(c => c.CustomerId).ToListAsync();
+
+
 				var customers = await _context.SupportChats
-					.Where(c => c.AgentId == request.AgentId)
-					.Select(c => new Customer
-					{
-						CustomerId = c.CustomerId
-					})
-					.Distinct()
-					.OrderBy(c => c.CustomerId)
-					.ToListAsync();
+	.Join(
+		_context.CustomerDetailInfo,
+		supportChat => supportChat.CustomerId,
+		customerInfo => customerInfo.CustomerId,
+		(supportChat, customerInfo) => new { supportChat, customerInfo }
+	)
+	.Join(
+		_context.SupportAgents,
+		combined => combined.supportChat.AgentId,
+		agent => agent.AgentId,
+		(combined, agent) => new
+		{
+			combined.supportChat,
+			combined.customerInfo,
+			agent.Name
+		}
+	)
+	.Where(record =>
+		record.supportChat.AgentId == request.AgentId ||
+		record.Name == request.AgentId)
+	.Select(record => new Customer
+	{
+		CustomerId = record.supportChat.CustomerId,
+		CustomerName = record.customerInfo.Name
+	})
+	.Distinct()
+	.OrderBy(c => c.CustomerId)
+	.ToListAsync();
+
 
 				// Return response
 				if (customers.Any())

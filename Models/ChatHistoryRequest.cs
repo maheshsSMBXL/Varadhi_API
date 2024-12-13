@@ -24,6 +24,8 @@
 		public string Sender { get; set; }
 		public string FileUrl { get; set; }
 		public string FileName { get; set; }
+		public string CustomerName { get; set; }
+		public string AgentName { get; set; }
 		public DateTime CreatedAt { get; set; }
 	}
 }

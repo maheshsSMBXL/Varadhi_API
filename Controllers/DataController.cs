@@ -5,6 +5,7 @@ using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Azure.Storage.Blobs;
 using Varadhi.Data;
 using Varadhi.Models;
 using Varadhi.Services;
@@ -14,283 +15,285 @@ using Agri_Smart.Helpers;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
 using System.Text.RegularExpressions;
+
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Varadhi.Controllers
 {
-    public class DataController : ControllerBase
-    {
-        private readonly ApplicationDbContext _context;
-        private readonly IEmailService _emailService;
-        private const string EncryptionKey = "12345678901234567890123456789012"; // Ensure this is 32 characters long
-        private const string FixedIV = "1234567890123456"; // Ensure this is 16 characters long
+	public class DataController : ControllerBase
+	{
+		private readonly ApplicationDbContext _context;
+		private readonly IEmailService _emailService;
+		private const string EncryptionKey = "12345678901234567890123456789012"; // Ensure this is 32 characters long
+		private const string FixedIV = "1234567890123456"; // Ensure this is 16 characters long
+	
+		public DataController(ApplicationDbContext context, IEmailService emailService)
+		{
+			_context = context;
+			_emailService = emailService;
 
-        public DataController(ApplicationDbContext context, IEmailService emailService)
-        {
-            _context = context;
-            _emailService = emailService;
-        }
+		}
 
-        [HttpGet("GetAgentsByTenant/{tenantId}")]
-        public async Task<IActionResult> GetAgentsByTenant(int tenantId)
-        {
-            try
-            {
-                // Validate if the tenant exists
-                var tenantExists = await _context.SupportTenants.AnyAsync(t => t.TenantId == tenantId);
-                if (!tenantExists)
-                {
-                    return Ok(new ResponseDto<List<SupportAgentDto>>
-                    {
-                        Success = false,
-                        Message = "Invalid Tenant ID. Tenant does not exist.",
-                        Data = null
-                    });
-                }
+		[HttpGet("GetAgentsByTenant/{tenantId}")]
+		public async Task<IActionResult> GetAgentsByTenant(int tenantId)
+		{
+			try
+			{
+				// Validate if the tenant exists
+				var tenantExists = await _context.SupportTenants.AnyAsync(t => t.TenantId == tenantId);
+				if (!tenantExists)
+				{
+					return Ok(new ResponseDto<List<SupportAgentDto>>
+					{
+						Success = false,
+						Message = "Invalid Tenant ID. Tenant does not exist.",
+						Data = null
+					});
+				}
 
-                // Retrieve agents for the given Tenant ID who are registered and validated
-                var agents = await (from agent in _context.SupportAgents
-                                    join roleAssign in _context.SupportRoleAssignAgents on agent.AgentId equals roleAssign.AgentID
-                                    join role in _context.SupportRoles on roleAssign.RoleID equals role.RoleID
-                                    where agent.TenantId == tenantId.ToString() && _context.SupportEmailVerifications.Any(ev => ev.AgentId == agent.AgentId && ev.IsVerified == true)
-                                    select new SupportAgentDto
-                                    {
-                                        AgentId = agent.AgentId,
-                                        Name = agent.Name,
-                                        Email = agent.Email,
-                                        Status = agent.Status,
-                                        Role = role.RoleName,
-                                        CreatedAt = agent.CreatedAt ?? DateTime.MinValue
-                                    }).ToListAsync();
+				// Retrieve agents for the given Tenant ID who are registered and validated
+				var agents = await (from agent in _context.SupportAgents
+									join roleAssign in _context.SupportRoleAssignAgents on agent.AgentId equals roleAssign.AgentID
+									join role in _context.SupportRoles on roleAssign.RoleID equals role.RoleID
+									where agent.TenantId == tenantId.ToString() && _context.SupportEmailVerifications.Any(ev => ev.AgentId == agent.AgentId && ev.IsVerified == true)
+									select new SupportAgentDto
+									{
+										AgentId = agent.AgentId,
+										Name = agent.Name,
+										Email = agent.Email,
+										Status = agent.Status,
+										Role = role.RoleName,
+										CreatedAt = agent.CreatedAt ?? DateTime.MinValue
+									}).ToListAsync();
 
-                // Prepare the response with agent details
-                return Ok(new ResponseDto<List<SupportAgentDto>>
-                {
-                    Success = true,
-                    Message = null,
-                    Data = agents
-                });
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                return StatusCode(500, new ResponseDto<string>
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message,
-                    Data = null
-                });
-            }
-        }
-        [HttpPost("updateAgentRole")]
-        public async Task<IActionResult> UpdateAgentRole([FromBody] UpdateAgentRoleDto data)
-        {
-            if (data == null || !ModelState.IsValid)
-            {
-                return BadRequest(new ResponseDto<string>
-                {
-                    Success = false,
-                    Message = "Invalid input."
-                });
-            }
+				// Prepare the response with agent details
+				return Ok(new ResponseDto<List<SupportAgentDto>>
+				{
+					Success = true,
+					Message = null,
+					Data = agents
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				return StatusCode(500, new ResponseDto<string>
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message,
+					Data = null
+				});
+			}
+		}
+		[HttpPost("updateAgentRole")]
+		public async Task<IActionResult> UpdateAgentRole([FromBody] UpdateAgentRoleDto data)
+		{
+			if (data == null || !ModelState.IsValid)
+			{
+				return BadRequest(new ResponseDto<string>
+				{
+					Success = false,
+					Message = "Invalid input."
+				});
+			}
 
-            try
-            {
-                // Validate if the tenant exists
-                var tenantExists = await _context.SupportTenants.AnyAsync(t => t.TenantId == data.TenantId);
-                if (!tenantExists)
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "Invalid or missing Tenant ID."
-                    });
-                }
+			try
+			{
+				// Validate if the tenant exists
+				var tenantExists = await _context.SupportTenants.AnyAsync(t => t.TenantId == data.TenantId);
+				if (!tenantExists)
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "Invalid or missing Tenant ID."
+					});
+				}
 
-                // Validate if the agent exists for the given tenant
-                var agent = await (from ra in _context.SupportRoleAssignAgents
-                                   join a in _context.SupportAgents on ra.AgentID equals a.AgentId
-                                   join r in _context.SupportRoles on ra.RoleID equals r.RoleID
-                                   where a.AgentId == data.AgentId && a.TenantId == data.TenantId.ToString()
-                                   select new { a.AgentId, r.RoleName }).FirstOrDefaultAsync();
+				// Validate if the agent exists for the given tenant
+				var agent = await (from ra in _context.SupportRoleAssignAgents
+								   join a in _context.SupportAgents on ra.AgentID equals a.AgentId
+								   join r in _context.SupportRoles on ra.RoleID equals r.RoleID
+								   where a.AgentId == data.AgentId && a.TenantId == data.TenantId.ToString()
+								   select new { a.AgentId, r.RoleName }).FirstOrDefaultAsync();
 
-                if (agent == null)
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "Agent not found in the given tenant."
-                    });
-                }
+				if (agent == null)
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "Agent not found in the given tenant."
+					});
+				}
 
-                // Update the agent's role in the tenant
-                var roleAssignment = await _context.SupportRoleAssignAgents
-                    .FirstOrDefaultAsync(ra => ra.AgentID == data.AgentId);
+				// Update the agent's role in the tenant
+				var roleAssignment = await _context.SupportRoleAssignAgents
+					.FirstOrDefaultAsync(ra => ra.AgentID == data.AgentId);
 
-                if (roleAssignment != null)
-                {
-                    roleAssignment.RoleID = data.NewRoleId;
-                    await _context.SaveChangesAsync();
-                }
+				if (roleAssignment != null)
+				{
+					roleAssignment.RoleID = data.NewRoleId;
+					await _context.SaveChangesAsync();
+				}
 
-                return Ok(new ResponseDto<UpdateAgentRoleDto>
-                {
-                    Success = true,
-                    Message = "Agent role updated successfully.",
-                    Data = data
-                });
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                return StatusCode(500, new ResponseDto<string>
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message,
-                    Data = null
-                });
-            }
-        }
-        [HttpGet("ListInvitationsByTenant/{tenantId}")]
-        public async Task<IActionResult> ListInvitationsByTenant(int tenantId)
-        {
-            try
-            {
-                // Validate if the tenant exists
-                var tenantExists = await _context.SupportTenants
-                    .AnyAsync(t => t.TenantId == tenantId);
+				return Ok(new ResponseDto<UpdateAgentRoleDto>
+				{
+					Success = true,
+					Message = "Agent role updated successfully.",
+					Data = data
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				return StatusCode(500, new ResponseDto<string>
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message,
+					Data = null
+				});
+			}
+		}
+		[HttpGet("ListInvitationsByTenant/{tenantId}")]
+		public async Task<IActionResult> ListInvitationsByTenant(int tenantId)
+		{
+			try
+			{
+				// Validate if the tenant exists
+				var tenantExists = await _context.SupportTenants
+					.AnyAsync(t => t.TenantId == tenantId);
 
-                if (!tenantExists)
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "Invalid Tenant ID. Tenant does not exist."
-                    });
-                }
+				if (!tenantExists)
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "Invalid Tenant ID. Tenant does not exist."
+					});
+				}
 
-                // Retrieve invitations for the given Tenant ID
-                var invitations = await _context.SupportInvitations
-                    .Where(i => i.TenantID == tenantId.ToString())
-                    .Join(_context.SupportRoles, i => i.RoleID, r => r.RoleID, (i, r) => new InvitationDto
-                    {
-                        InvitationId = i.InvitationID,
-                        Email = i.Email,
-                        Status = i.Status,
-                        Role = r.RoleName,
-                        CreatedAt = i.CreatedAt.ToString()
-                    })
-                    .ToListAsync();
+				// Retrieve invitations for the given Tenant ID
+				var invitations = await _context.SupportInvitations
+					.Where(i => i.TenantID == tenantId.ToString())
+					.Join(_context.SupportRoles, i => i.RoleID, r => r.RoleID, (i, r) => new InvitationDto
+					{
+						InvitationId = i.InvitationID,
+						Email = i.Email,
+						Status = i.Status,
+						Role = r.RoleName,
+						CreatedAt = i.CreatedAt.ToString()
+					})
+					.ToListAsync();
 
-                return Ok(new ResponseDto<List<InvitationDto>>
-                {
-                    Success = true,
-                    Data = invitations
-                });
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                return StatusCode(500, new ResponseDto<string>
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                });
-            }
-        }
-        [HttpPost("ResendInvitation")]
-        public async Task<IActionResult> ResendInvitation([FromBody] ResendInvitationRequest request)
-        {
-            try
-            {
-                // Validate the input
-                if (request.TenantId <= 0)
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "Invalid or missing Tenant ID."
-                    });
-                }
+				return Ok(new ResponseDto<List<InvitationDto>>
+				{
+					Success = true,
+					Data = invitations
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				return StatusCode(500, new ResponseDto<string>
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				});
+			}
+		}
+		[HttpPost("ResendInvitation")]
+		public async Task<IActionResult> ResendInvitation([FromBody] ResendInvitationRequest request)
+		{
+			try
+			{
+				// Validate the input
+				if (request.TenantId <= 0)
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "Invalid or missing Tenant ID."
+					});
+				}
 
-                if (string.IsNullOrEmpty(request.Email) || !IsValidEmail(request.Email))
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "Invalid or missing email address."
-                    });
-                }
+				if (string.IsNullOrEmpty(request.Email) || !IsValidEmail(request.Email))
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "Invalid or missing email address."
+					});
+				}
 
-                // Check if a pending invitation exists for the given email and tenant ID
-                var pendingInvitation = await _context.SupportInvitations
-                    .FirstOrDefaultAsync(i => i.Email == request.Email && i.TenantID == request.TenantId.ToString() && i.Status == "Pending");
+				// Check if a pending invitation exists for the given email and tenant ID
+				var pendingInvitation = await _context.SupportInvitations
+					.FirstOrDefaultAsync(i => i.Email == request.Email && i.TenantID == request.TenantId.ToString() && i.Status == "Pending");
 
-                if (pendingInvitation == null)
-                {
-                    return Ok(new ResponseDto<string>
-                    {
-                        Success = false,
-                        Message = "No pending invitation found for this email and tenant."
-                    });
-                }
+				if (pendingInvitation == null)
+				{
+					return Ok(new ResponseDto<string>
+					{
+						Success = false,
+						Message = "No pending invitation found for this email and tenant."
+					});
+				}
 
-                // Prepare the data to encrypt (tenantId, roleId, invitationId)
-                var dataToEncrypt = new
-                {
-                    tenantId = pendingInvitation.TenantID,
-                    roleId = pendingInvitation.RoleID,
-                    invitationId = pendingInvitation.InvitationID
-                };
+				// Prepare the data to encrypt (tenantId, roleId, invitationId)
+				var dataToEncrypt = new
+				{
+					tenantId = pendingInvitation.TenantID,
+					roleId = pendingInvitation.RoleID,
+					invitationId = pendingInvitation.InvitationID
+				};
 
-                // Encrypt the data using AES-256
-                var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
-                var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
+				// Encrypt the data using AES-256
+				var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
+				var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
 
-                // Prepare email content for the invitation
-                var emailData = new EmailData
-                {
-                    From = "chatsupportops@personalizedhealthrx.com",
-                    To = request.Email,
-                    Subject = "Invitation Resent: Join as an Agent",
-                    Body = $"Hello,<br><br>You have been re-invited to join as an agent for Tenant ID: {pendingInvitation.TenantID}.<br><br>Your role will be: {(pendingInvitation.RoleID == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
-                    Type = "html"
-                };
+				// Prepare email content for the invitation
+				var emailData = new EmailData
+				{
+					From = "chatsupportops@personalizedhealthrx.com",
+					To = request.Email,
+					Subject = "Invitation Resent: Join as an Agent",
+					Body = $"Hello,<br><br>You have been re-invited to join as an agent for Tenant ID: {pendingInvitation.TenantID}.<br><br>Your role will be: {(pendingInvitation.RoleID == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
+					Type = "html"
+				};
 
-                // Call sendEmail function to resend the invitation email
-                await _emailService.SendEmailAsync(emailData);
+				// Call sendEmail function to resend the invitation email
+				await _emailService.SendEmailAsync(emailData);
 
-                // Return success response
-                return Ok(new ResponseDto<string>
-                {
-                    Success = true,
-                    Message = "Invitation resent successfully.",
-                    Data = invitationLink // Optional: Remove this if you don't want to expose the link in the API response
-                });
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                return StatusCode(500, new ResponseDto<string>
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                });
-            }
-        }
+				// Return success response
+				return Ok(new ResponseDto<string>
+				{
+					Success = true,
+					Message = "Invitation resent successfully.",
+					Data = invitationLink // Optional: Remove this if you don't want to expose the link in the API response
+				});
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				return StatusCode(500, new ResponseDto<string>
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				});
+			}
+		}
 
-        private static bool IsValidEmail(string email)
-        {
-            try
-            {
-                var mailAddress = new MailAddress(email);
-                return true;
-            }
-            catch (FormatException)
-            {
-                return false;
-            }
-        }
+		private static bool IsValidEmail(string email)
+		{
+			try
+			{
+				var mailAddress = new MailAddress(email);
+				return true;
+			}
+			catch (FormatException)
+			{
+				return false;
+			}
+		}
 
 		//    private static string EncryptData(string key, string iv, object data)
 		//    {
@@ -511,43 +514,43 @@ namespace Varadhi.Controllers
 
 
 		[HttpPost("InviteAgent")]
-        public async Task<IActionResult> InviteAgent([FromBody] InviteAgentRequest request)
-        {
-            try
-            {
-                // Generate a secret invitation ID
-                var invitationId = Guid.NewGuid().ToString();
+		public async Task<IActionResult> InviteAgent([FromBody] InviteAgentRequest request)
+		{
+			try
+			{
+				// Generate a secret invitation ID
+				var invitationId = Guid.NewGuid().ToString();
 
-                // Validate if tenant exists
-                var tenant = await _context.SupportTenants.FirstOrDefaultAsync(t => t.TenantId == request.TenantId);
-                if (tenant == null)
-                {
-                    return BadRequest(new InviteAgentResponse
-                    {
-                        Success = false,
-                        Message = "Invalid Tenant ID. Tenant does not exist."
-                    });
-                }
+				// Validate if tenant exists
+				var tenant = await _context.SupportTenants.FirstOrDefaultAsync(t => t.TenantId == request.TenantId);
+				if (tenant == null)
+				{
+					return BadRequest(new InviteAgentResponse
+					{
+						Success = false,
+						Message = "Invalid Tenant ID. Tenant does not exist."
+					});
+				}
 
-                // Insert invitation details into TBL_MCSUPPORT_INVITATIONS
-                var invitation = new SupportInvitations
-                {
-                    InvitationID = invitationId,
-                    TenantID = request.TenantId.ToString(),
-                    RoleID = request.RoleId,
-                    Email = request.Email,
-                    Status = "Pending",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.SupportInvitations.Add(invitation);
-                await _context.SaveChangesAsync();
+				// Insert invitation details into TBL_MCSUPPORT_INVITATIONS
+				var invitation = new SupportInvitations
+				{
+					InvitationID = invitationId,
+					TenantID = request.TenantId.ToString(),
+					RoleID = request.RoleId,
+					Email = request.Email,
+					Status = "Pending",
+					CreatedAt = DateTime.UtcNow
+				};
+				_context.SupportInvitations.Add(invitation);
+				await _context.SaveChangesAsync();
 
 				// Prepare the data to encrypt
 				var dataToEncrypt = new Dictionary<string, string>
-                 {
-	                { "tenantId", request.TenantId.ToString() },
-	                { "roleId", request.RoleId.ToString() },
-	                { "invitationId", invitationId },
+				 {
+					{ "tenantId", request.TenantId.ToString() },
+					{ "roleId", request.RoleId.ToString() },
+					{ "invitationId", invitationId },
 					 { "email", request.Email }
 				};
 
@@ -560,333 +563,333 @@ namespace Varadhi.Controllers
 				Console.WriteLine("Encrypted Data: " + encryptedData);
 
 				// Generate the invitation link
-				var invitationLink = $"https://agent.com/?invitation={encryptedData}";
+				var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
 
-                // Prepare email content for the invitation
-                var emailData = new EmailData
-                {
-                    From = "chatsupportops@personalizedhealthrx.com",
-                    To = request.Email,
-                    Subject = "You're Invited to Join as an Agent",
-                    Body = $"Hello,<br><br>You have been invited to join as an agent for Tenant ID: {request.TenantId}.<br><br>Your role will be: {(request.RoleId == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
-                    Type = "html"
-                };
+				// Prepare email content for the invitation
+				var emailData = new EmailData
+				{
+					From = "chatsupportops@personalizedhealthrx.com",
+					To = request.Email,
+					Subject = "You're Invited to Join as an Agent",
+					Body = $"Hello,<br><br>You have been invited to join as an agent for Tenant ID: {request.TenantId}.<br><br>Your role will be: {(request.RoleId == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
+					Type = "html"
+				};
 
-                // Call sendEmail function to send the invitation email
-                await _emailService.SendEmailAsync(emailData);
+				// Call sendEmail function to send the invitation email
+				await _emailService.SendEmailAsync(emailData);
 
-                // Return success response
-                var response = new InviteAgentResponse
-                {
-                    Success = true,
-                    Message = "Agent invited successfully. Invitation email has been sent.",
-                    InvitationLink = invitationLink // Optional: You can omit this if you don't want to expose the link in the API response
-                };
+				// Return success response
+				var response = new InviteAgentResponse
+				{
+					Success = true,
+					Message = "Agent invited successfully. Invitation email has been sent.",
+					InvitationLink = invitationLink // Optional: You can omit this if you don't want to expose the link in the API response
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                var response = new InviteAgentResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				var response = new InviteAgentResponse
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				};
 
-                return StatusCode(500, response);
-            }
-        }
-        [HttpPost("ChangePassword")]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
-        {
-            try
-            {
-                // Verify the provided verification code
-                var verification = await _context.SupportPasswordChangeVerification
-                    .FirstOrDefaultAsync(v => v.VerificationCode == request.VerificationCode && v.IsUsed == false);
+				return StatusCode(500, response);
+			}
+		}
+		[HttpPost("ChangePassword")]
+		public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+		{
+			try
+			{
+				// Verify the provided verification code
+				var verification = await _context.SupportPasswordChangeVerification
+					.FirstOrDefaultAsync(v => v.VerificationCode == request.VerificationCode && v.IsUsed == false);
 
-                if (verification == null)
-                {
-                    return BadRequest(new ChangePasswordResponse
-                    {
-                        Success = false,
-                        Message = "Invalid or expired verification code."
-                    });
-                }
+				if (verification == null)
+				{
+					return BadRequest(new ChangePasswordResponse
+					{
+						Success = false,
+						Message = "Invalid or expired verification code."
+					});
+				}
 
-                // Hash the new password
-                var salt = Guid.NewGuid().ToString();
-                var newPasswordHash = HashPassword(request.NewPassword, salt);
+				// Hash the new password
+				var salt = Guid.NewGuid().ToString();
+				var newPasswordHash = HashPassword(request.NewPassword, salt);
 
-                // Update the password
-                var tenantPassword = await _context.SupportTenantPassword.FirstOrDefaultAsync(t => t.TenantId == verification.TenantID);
-                if (tenantPassword != null)
-                {
-                    tenantPassword.PasswordHash = newPasswordHash;
-                    tenantPassword.Salt = salt;
-                }
-                else
-                {
-                    return BadRequest(new ChangePasswordResponse
-                    {
-                        Success = false,
-                        Message = "Tenant not found."
-                    });
-                }
+				// Update the password
+				var tenantPassword = await _context.SupportTenantPassword.FirstOrDefaultAsync(t => t.TenantId == verification.TenantID);
+				if (tenantPassword != null)
+				{
+					tenantPassword.PasswordHash = newPasswordHash;
+					tenantPassword.Salt = salt;
+				}
+				else
+				{
+					return BadRequest(new ChangePasswordResponse
+					{
+						Success = false,
+						Message = "Tenant not found."
+					});
+				}
 
-                // Mark the verification code as used
-                verification.IsUsed = true;
-                await _context.SaveChangesAsync();
+				// Mark the verification code as used
+				verification.IsUsed = true;
+				await _context.SaveChangesAsync();
 
-                // Return success response
-                var response = new ChangePasswordResponse
-                {
-                    Success = true,
-                    Message = "Password updated successfully."
-                };
+				// Return success response
+				var response = new ChangePasswordResponse
+				{
+					Success = true,
+					Message = "Password updated successfully."
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                var response = new ChangePasswordResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				var response = new ChangePasswordResponse
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				};
 
-                return StatusCode(500, response);
-            }
-        }
+				return StatusCode(500, response);
+			}
+		}
 
-        private static string HashPassword(string password, string salt)
-        {
-            using (var sha256 = SHA256.Create())
-            {
-                var bytes = Encoding.UTF8.GetBytes(password + salt);
-                var hash = sha256.ComputeHash(bytes);
-                return Convert.ToBase64String(hash);
-            }
-        }
-        [HttpPost("LoginTenant")]
-        public async Task<IActionResult> LoginTenant([FromBody] LoginRequest request)
-        {
-            try
-            {
-                // Retrieve Tenant's password hash and salt
-                var supportTenants = await _context.SupportTenants.FirstOrDefaultAsync(a => a.AdminEmail == request.Email);
-                var tenantPassword = await _context.SupportTenantPassword.FirstOrDefaultAsync(p => p.TenantId == supportTenants.TenantId);
+		private static string HashPassword(string password, string salt)
+		{
+			using (var sha256 = SHA256.Create())
+			{
+				var bytes = Encoding.UTF8.GetBytes(password + salt);
+				var hash = sha256.ComputeHash(bytes);
+				return Convert.ToBase64String(hash);
+			}
+		}
+		[HttpPost("LoginTenant")]
+		public async Task<IActionResult> LoginTenant([FromBody] LoginRequest request)
+		{
+			try
+			{
+				// Retrieve Tenant's password hash and salt
+				var supportTenants = await _context.SupportTenants.FirstOrDefaultAsync(a => a.AdminEmail == request.Email);
+				var tenantPassword = await _context.SupportTenantPassword.FirstOrDefaultAsync(p => p.TenantId == supportTenants.TenantId);
 
-                if (tenantPassword == null)
-                {
-                    return BadRequest(new LoginResponse
-                    {
-                        Success = false,
-                        Message = "Invalid email or password."
-                    });
-                }
+				if (tenantPassword == null)
+				{
+					return BadRequest(new LoginResponse
+					{
+						Success = false,
+						Message = "Invalid email or password."
+					});
+				}
 
-                // Validate the password
-                var hashedInputPassword = HashPassword(request.Password, tenantPassword.Salt);
-                if (hashedInputPassword != tenantPassword.PasswordHash)
-                {
-                    return BadRequest(new LoginResponse
-                    {
-                        Success = false,
-                        Message = "Invalid email or password."
-                    });
-                }
+				// Validate the password
+				var hashedInputPassword = HashPassword(request.Password, tenantPassword.Salt);
+				if (hashedInputPassword != tenantPassword.PasswordHash)
+				{
+					return BadRequest(new LoginResponse
+					{
+						Success = false,
+						Message = "Invalid email or password."
+					});
+				}
 
-                // Return success response
-                var response = new LoginResponse
-                {
-                    Success = true,
-                    Message = "Login successful.",
-                    TenantId = tenantPassword.TenantId.ToString()
-                };
+				// Return success response
+				var response = new LoginResponse
+				{
+					Success = true,
+					Message = "Login successful.",
+					TenantId = tenantPassword.TenantId.ToString()
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                var response = new LoginResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				var response = new LoginResponse
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				};
 
-                return StatusCode(500, response);
-            }
-        }
-        [HttpPost("VerifyTenant")]
-        public async Task<IActionResult> VerifyTenant([FromBody] VerifyTenantRequest request)
-        {
-            try
-            {
-                // Check if the TenantKey and VerificationCode match
-                var tenant = await _context.SupportTenants
-                    .FirstOrDefaultAsync(t => t.TenantKey == request.TenantKey && t.VerificationCode == request.VerificationCode);
+				return StatusCode(500, response);
+			}
+		}
+		[HttpPost("VerifyTenant")]
+		public async Task<IActionResult> VerifyTenant([FromBody] VerifyTenantRequest request)
+		{
+			try
+			{
+				// Check if the TenantKey and VerificationCode match
+				var tenant = await _context.SupportTenants
+					.FirstOrDefaultAsync(t => t.TenantKey == request.TenantKey && t.VerificationCode == request.VerificationCode);
 
-                if (tenant == null)
-                {
-                    // Handle no matching tenant
-                    return BadRequest(new VerifyTenantResponse
-                    {
-                        Success = false,
-                        Message = "Invalid verification code or TenantKey."
-                    });
-                }
+				if (tenant == null)
+				{
+					// Handle no matching tenant
+					return BadRequest(new VerifyTenantResponse
+					{
+						Success = false,
+						Message = "Invalid verification code or TenantKey."
+					});
+				}
 
-                // Handle already verified tenant
-                if (tenant.IsVerified == true)
-                {
-                    return BadRequest(new VerifyTenantResponse
-                    {
-                        Success = false,
-                        Message = "This tenant is already verified.",
-                        TenantId = tenant.TenantId
-                    });
-                }
+				// Handle already verified tenant
+				if (tenant.IsVerified == true)
+				{
+					return BadRequest(new VerifyTenantResponse
+					{
+						Success = false,
+						Message = "This tenant is already verified.",
+						TenantId = tenant.TenantId
+					});
+				}
 
-                // Update tenant to set IsVerified = true and clear the VerificationCode
-                tenant.IsVerified = true;
-                tenant.VerificationCode = null;
-                await _context.SaveChangesAsync();
+				// Update tenant to set IsVerified = true and clear the VerificationCode
+				tenant.IsVerified = true;
+				tenant.VerificationCode = null;
+				await _context.SaveChangesAsync();
 
-                // Return success response
-                var response = new VerifyTenantResponse
-                {
-                    Success = true,
-                    Message = "Tenant verified successfully.",
-                    TenantId = tenant.TenantId
-                };
+				// Return success response
+				var response = new VerifyTenantResponse
+				{
+					Success = true,
+					Message = "Tenant verified successfully.",
+					TenantId = tenant.TenantId
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                var response = new VerifyTenantResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				var response = new VerifyTenantResponse
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				};
 
-                return StatusCode(500, response);
-            }
-        }
-        [HttpPost("RegisterTenant")]
-        public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request)
-        {
-            try
-            {
-                // Generate a unique TenantKey and VerificationCode
-                var tenantKey = Guid.NewGuid().ToString();
-                var verificationCode = new Random().Next(10000, 99999).ToString();
+				return StatusCode(500, response);
+			}
+		}
+		[HttpPost("RegisterTenant")]
+		public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request)
+		{
+			try
+			{
+				// Generate a unique TenantKey and VerificationCode
+				var tenantKey = Guid.NewGuid().ToString();
+				var verificationCode = new Random().Next(10000, 99999).ToString();
 
-                // Hash the password with a salt
-                var salt = Guid.NewGuid().ToString();
-                var passwordHash = HashPassword(request.AdminPassword, salt);
+				// Hash the password with a salt
+				var salt = Guid.NewGuid().ToString();
+				var passwordHash = HashPassword(request.AdminPassword, salt);
 
-                // Insert tenant data into the database
-                var tenant = new SupportTenants
-                {
-                    CompanyName = request.CompanyName,
-                    TenantKey = tenantKey,
-                    AdminEmail = request.AdminEmail,
-                    IsVerified = false, // Default to not verified
-                    VerificationCode = verificationCode,
-                    CompanySize = request.CompanySize,
-                    CreatedAt = DateTime.UtcNow
-                };
+				// Insert tenant data into the database
+				var tenant = new SupportTenants
+				{
+					CompanyName = request.CompanyName,
+					TenantKey = tenantKey,
+					AdminEmail = request.AdminEmail,
+					IsVerified = false, // Default to not verified
+					VerificationCode = verificationCode,
+					CompanySize = request.CompanySize,
+					CreatedAt = DateTime.UtcNow
+				};
 
-                _context.SupportTenants.Add(tenant);
-                await _context.SaveChangesAsync();
+				_context.SupportTenants.Add(tenant);
+				await _context.SaveChangesAsync();
 
-                // Insert the hashed password into the TBL_MCSUPPORT_TENANT_PASSWORDS table
-                var tenantPassword = new SupportTenantPassword
-                {
-                    TenantId = tenant.TenantId,
-                    PasswordHash = passwordHash,
-                    Salt = salt
-                };
+				// Insert the hashed password into the TBL_MCSUPPORT_TENANT_PASSWORDS table
+				var tenantPassword = new SupportTenantPassword
+				{
+					TenantId = tenant.TenantId,
+					PasswordHash = passwordHash,
+					Salt = salt
+				};
 
-                _context.SupportTenantPassword.Add(tenantPassword);
-                await _context.SaveChangesAsync();
+				_context.SupportTenantPassword.Add(tenantPassword);
+				await _context.SaveChangesAsync();
 
-                // Prepare and send the verification email
-                var emailSubject = "Verify Your Company Registration";
-                var emailBody = $"Thank you for registering your company. Please use the following code to verify your account: {verificationCode}";
+				// Prepare and send the verification email
+				var emailSubject = "Verify Your Company Registration";
+				var emailBody = $"Thank you for registering your company. Please use the following code to verify your account: {verificationCode}";
 
-                var emailData = new EmailData
-                {
-                    From = "chatsupportops@personalizedhealthrx.com",
-                    To = request.AdminEmail,
-                    Subject = emailSubject,
-                    Body = emailBody,
-                    Type = "html"
-                };
+				var emailData = new EmailData
+				{
+					From = "chatsupportops@personalizedhealthrx.com",
+					To = request.AdminEmail,
+					Subject = emailSubject,
+					Body = emailBody,
+					Type = "html"
+				};
 
-                // Call sendEmail function to send the invitation email
-                await _emailService.SendEmailAsync(emailData);
+				// Call sendEmail function to send the invitation email
+				await _emailService.SendEmailAsync(emailData);
 
-                // Return success response with tenant details
-                var response = new RegisterTenantResponse
-                {
-                    Success = true,
-                    Message = "Tenant registered successfully. Verification code has been sent to the admin email.",
-                    TenantKey = tenantKey
-                };
+				// Return success response with tenant details
+				var response = new RegisterTenantResponse
+				{
+					Success = true,
+					Message = "Tenant registered successfully. Verification code has been sent to the admin email.",
+					TenantKey = tenantKey
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                var response = new RegisterTenantResponse
-                {
-                    Success = false,
-                    Message = "An error occurred: " + ex.Message
-                };
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				var response = new RegisterTenantResponse
+				{
+					Success = false,
+					Message = "An error occurred: " + ex.Message
+				};
 
-                return StatusCode(500, response);
-            }
-        }
-        [HttpGet("GetFAQSectionNames")]
-        public async Task<IActionResult> GetFAQSectionNames()
-        {
-            try
-            {
-                // Fetch FAQ section names excluding FAQ_SECTION_ID = 1
-                var sectionNames = await _context.SupportFAQSection
-                    .Where(s => s.FAQSectionId != 1)
-                    .Select(s => s.FAQSectionName)
-                    .ToListAsync();
+				return StatusCode(500, response);
+			}
+		}
+		[HttpGet("GetFAQSectionNames")]
+		public async Task<IActionResult> GetFAQSectionNames()
+		{
+			try
+			{
+				// Fetch FAQ section names excluding FAQ_SECTION_ID = 1
+				var sectionNames = await _context.SupportFAQSection
+					.Where(s => s.FAQSectionId != 1)
+					.Select(s => s.FAQSectionName)
+					.ToListAsync();
 
-                // Prepare the response
-                var response = new GetFAQSectionNamesResponse
-                {
-                    Success = true,
-                    Categories = sectionNames
-                };
+				// Prepare the response
+				var response = new GetFAQSectionNamesResponse
+				{
+					Success = true,
+					Categories = sectionNames
+				};
 
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors and return a generic error message
-                var response = new GetFAQSectionNamesResponse
-                {
-                    Success = false,
-                    Categories = new List<string>()
-                };
-                return StatusCode(500, response);
-            }
-        }
-		
+				return Ok(response);
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors and return a generic error message
+				var response = new GetFAQSectionNamesResponse
+				{
+					Success = false,
+					Categories = new List<string>()
+				};
+				return StatusCode(500, response);
+			}
+		}
+
 		public class AgentTicketCount
 		{
 			public string AgentId { get; set; }
@@ -1016,18 +1019,18 @@ namespace Varadhi.Controllers
 					var ticketResponse = new SupportTicketResponse
 					{
 						TicketId = data.Ticketid, // Set appropriate TenantId
-                        TenantId = (await _context.SupportTickets
+						TenantId = (await _context.SupportTickets
 									.Where(t => t.TicketId == data.Ticketid)
 									   .Select(t => t.TenantId)
 									.FirstOrDefaultAsync()),
 						CustomerId = (await _context.SupportTickets
-	                                .Where(t => t.TicketId == data.Ticketid)
-                                   	.Select(t => t.CustomerId)
-	                                .FirstOrDefaultAsync()), // Set appropriate CustomerId
+									.Where(t => t.TicketId == data.Ticketid)
+									   .Select(t => t.CustomerId)
+									.FirstOrDefaultAsync()), // Set appropriate CustomerId
 						AgentId = await _context.SupportTickets
-                               	  .Where(t => t.TicketId == data.Ticketid)
-	                              .Select(t => t.AssignedTo)
-	                              .FirstOrDefaultAsync(), // Set appropriate AgentId
+									 .Where(t => t.TicketId == data.Ticketid)
+								  .Select(t => t.AssignedTo)
+								  .FirstOrDefaultAsync(), // Set appropriate AgentId
 						Reply = data.Body, // Store the email body as the reply
 						CreatedAt = DateTime.UtcNow // Set the creation timestamp
 					};
@@ -1072,108 +1075,194 @@ namespace Varadhi.Controllers
 		}
 
 		[HttpGet("getDetailedTicketInfo/{ticketId}")]
-        public async Task<IActionResult> GetDetailedTicketInfo(int ticketId)
-        {
-            var response = new TicketDetailsResponse();
-            
-            try
-            {
-                var ticketInfo = await _context.SupportTickets.FirstOrDefaultAsync(a => a.TicketId == ticketId);
-                var replyinfo = (await _context.SupportTicketResponse
-                                    .Where(t => t.TicketId == ticketId)
-                                       .Select(t => t.Reply)
-                                    .FirstOrDefaultAsync());
+		public async Task<IActionResult> GetDetailedTicketInfo(int ticketId)
+		{
+			var response = new TicketDetailsResponse();
+
+			try
+			{
+				var ticketInfo = await _context.SupportTickets.FirstOrDefaultAsync(a => a.TicketId == ticketId);
+				var replyinfo = (await _context.SupportTicketResponse
+									.Where(t => t.TicketId == ticketId)
+									   .Select(t => t.Reply)
+									.FirstOrDefaultAsync());
 
 				if (ticketInfo != null)
-                {
-                    // Return success response with ticket details
-                    response.Status = "success";
-                    response.Message = "Ticket details retrieved successfully.";
-                    if(replyinfo != null)
-                    {
+				{
+					// Return success response with ticket details
+					response.Status = "success";
+					response.Message = "Ticket details retrieved successfully.";
+					if (replyinfo != null)
+					{
 						response.Reply = replyinfo;
 
-                    }
-                    else
-                    {
-                        response.Reply = "";
+					}
+					else
+					{
+						response.Reply = "";
 
 					}
 
 					response.Ticket = ticketInfo;
-                }
-                else
-                {
-                    // Ticket not found response
-                    response.Status = "error";
-                    response.Message = "Ticket not found.";
-                }
-            }
-            catch (Exception ex)
-            {
-                // Handle any errors
-                response.Status = "error";
-                response.Message = "An error occurred while retrieving ticket details.";
-                response.Error = ex.Message;
-            }
+				}
+				else
+				{
+					// Ticket not found response
+					response.Status = "error";
+					response.Message = "Ticket not found.";
+				}
+			}
+			catch (Exception ex)
+			{
+				// Handle any errors
+				response.Status = "error";
+				response.Message = "An error occurred while retrieving ticket details.";
+				response.Error = ex.Message;
+			}
 
-            return Ok(response);
-        }
-        [HttpPost("UploadChatImage")]
-        public async Task<IActionResult> UploadChatImage(List<IFormFile> imageFiles, [ModelBinder(BinderType = typeof(JsonModelBinder))] SupportChats request, [FromServices] IWebHostEnvironment env)
-        {
-            try
-            {
-                // Upload Image
-                var filesPaths = new List<string>();
+			return Ok(response);
+		}
+		//	[HttpPost("UploadChatImage")]
+		////	[SwaggerOperation(Summary = "Upload chat images with metadata", Description = "Uploads images and associated metadata in a single request.")]
+		//	[Consumes("multipart/form-data")]
+		//public async Task<IActionResult> UploadChatImage(List<IFormFile> imageFiles, [ModelBinder(BinderType = typeof(JsonModelBinder))] SupportChats request, [FromServices] IWebHostEnvironment env)
+		//	{
+		//		try
+		//		{
+		//			if (imageFiles == null || !imageFiles.Any())
+		//			{
+		//				return BadRequest(new { Success = false, Message = "No image files provided." });
+		//			}
 
-                if (imageFiles != null && imageFiles.Any())
-                {
-                    foreach (var imageFile in imageFiles)
-                    {
-                        string folderPath = Path.Combine(env.ContentRootPath, "Photos");
-                        if (!Directory.Exists(folderPath))
-                        {
-                            Directory.CreateDirectory(folderPath);
-                        }
+		//			if (request == null)
+		//			{
+		//				return BadRequest(new { Success = false, Message = "Request payload is missing or invalid." });
+		//			}
 
-                        var randomNum = new Random().Next(100000, 999999);
-                        var newFileName = Path.GetFileNameWithoutExtension(imageFile.FileName) + "_" + randomNum + Path.GetExtension(imageFile.FileName);
+		//			var filesPaths = new List<string>();
+		//			string folderPath = Path.Combine(env.ContentRootPath, "Photos");
+		//			if (!Directory.Exists(folderPath))
+		//			{
+		//				Directory.CreateDirectory(folderPath);
+		//			}
 
-                        string filePath = Path.Combine(folderPath, newFileName);
-                        using (Stream stream = new FileStream(filePath, FileMode.Create))
-                        {
-                            await imageFile.CopyToAsync(stream);
-                        }
-                        filesPaths.Add(filePath);
-                    }
-                }
+		//			foreach (var imageFile in imageFiles)
+		//			{
+		//				if (imageFile.Length == 0)
+		//				{
+		//					return BadRequest(new { Success = false, Message = $"File {imageFile.FileName} is empty." });
+		//				}
 
-                var supportChat = new SupportChats();
+		//				var randomNum = new Random().Next(100000, 999999);
+		//				var newFileName = Path.GetFileNameWithoutExtension(imageFile.FileName) + "_" + randomNum + Path.GetExtension(imageFile.FileName);
+		//				string filePath = Path.Combine(folderPath, newFileName);
 
-                supportChat.TenantId = request.TenantId;
-                supportChat.AgentId = request.AgentId;
-                supportChat.CustomerId = request.CustomerId;
-                supportChat.Message = "Image message"; // Static message text
-                supportChat.Sender = request.Sender;
-                supportChat.FileUrl = filesPaths.ToString();
-                supportChat.FileName = filesPaths.ToString();
+		//				using (Stream stream = new FileStream(filePath, FileMode.Create))
+		//				{
+		//					await imageFile.CopyToAsync(stream);
+		//				}
 
-                await _context.SupportChats.AddAsync(supportChat);
-                await _context.SaveChangesAsync();
+		//				filesPaths.Add(filePath);
+		//			}
 
-                return Ok(new { Success = true, Message = "Chat image uploaded successfully.", FilePath = filesPaths.ToString() });
+		//			var supportChat = new SupportChats
+		//			{
+		//				TenantId = request.TenantId,
+		//				AgentId = request.AgentId,
+		//				CustomerId = request.CustomerId,
+		//				Message = "Image message",
+		//				Sender = request.Sender,
+		//				FileUrl = string.Join(",", filesPaths),
+		//				FileName = string.Join(",", filesPaths)
+		//			};
+
+		//			await _context.SupportChats.AddAsync(supportChat);
+		//			await _context.SaveChangesAsync();
+
+		//			return Ok(new { Success = true, Message = "Chat image uploaded successfully.", FilePath = string.Join(",", filesPaths) });
+		//		}
+		//		catch (Exception ex)
+		//		{
+		//			return Ok(new { Success = false, Message = "An error occurred during image upload.", Error = ex.Message });
+		//		}
+		//	}
 
 
-            }
-            catch (Exception ex)
-            {
-                return Ok(new { Success = false, Message = "An error occurred during image upload.", Error = ex.Message });                
-            }
-
-            return Ok();
-        }
+		//newww
 
 
-    }
+		//[HttpPost("UploadChatImage")]
+		//[Consumes("multipart/form-data")]
+		//public async Task<IActionResult> UploadChatImage([FromForm] UploadChatImageModel model)
+		//{
+		//	try
+		//	{
+
+		//		//if (string.IsNullOrEmpty(model.Request))
+		//		//{
+		//		//    return BadRequest(new { Success = false, Message = "Request payload is missing." });
+		//		//}
+
+		//		// Deserialize the JSON string to SupportChats object
+		//		SupportChats request;
+		//		try
+		//		{
+		//			request = JsonSerializer.Deserialize<SupportChats>(model.Request);
+		//			if (request == null)
+		//			{
+		//				return BadRequest(new { Success = false, Message = "Invalid request payload." });
+		//			}
+		//		}
+		//		catch (JsonException)
+		//		{
+		//			return BadRequest(new { Success = false, Message = "Invalid JSON format for request." });
+		//		}
+
+		//		var filesUrls = new List<string>();
+		//		BlobContainerClient containerClient = new BlobContainerClient(_blobConnectionString, _blobContainerName);
+		//		await containerClient.CreateIfNotExistsAsync();
+		//		await containerClient.SetAccessPolicyAsync(Azure.Storage.Blobs.Models.PublicAccessType.Blob);
+
+		//		foreach (var imageFile in model.ImageFiles)
+		//		{
+		//			if (imageFile.Length == 0)
+		//			{
+		//				return BadRequest(new { Success = false, Message = $"File {imageFile.FileName} is empty." });
+		//			}
+
+		//			var randomNum = new Random().Next(100000, 999999);
+		//			var newFileName = Path.GetFileNameWithoutExtension(imageFile.FileName) + "_" + randomNum + Path.GetExtension(imageFile.FileName);
+		//			var blobClient = containerClient.GetBlobClient(newFileName);
+
+		//			using (var stream = imageFile.OpenReadStream())
+		//			{
+		//				await blobClient.UploadAsync(stream, overwrite: true);
+		//			}
+
+		//			filesUrls.Add(blobClient.Uri.ToString());
+		//		}
+
+		//		var supportChat = new SupportChats
+		//		{
+		//			TenantId = request.TenantId,
+		//			AgentId = request.AgentId,
+		//			CustomerId = request.CustomerId,
+		//			Message = "Image message",
+		//			Sender = request.Sender,
+		//			FileUrl = string.Join(",", filesUrls),
+		//			FileName = string.Join(",", filesUrls.Select(url => Path.GetFileName(url)))
+		//		};
+
+		//		await _context.SupportChats.AddAsync(supportChat);
+		//		await _context.SaveChangesAsync();
+
+		//		return Ok(new { Success = true, Message = "Chat image uploaded successfully.", FileUrls = filesUrls });
+		//	}
+		//	catch (Exception ex)
+		//	{
+		//		return StatusCode(500, new { Success = false, Message = "An error occurred during image upload.", Error = ex.Message });
+		//	}
+		//}
+
+	}
 }
