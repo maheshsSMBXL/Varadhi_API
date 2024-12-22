@@ -31,10 +31,19 @@ namespace Varadhi.Data
         public DbSet<SupportAgentForgotPwdVerification> supportAgentForgotPwdVerifications { get; set; }
 
         public DbSet<SupportTicketResponse> SupportTicketResponse { get; set; }
+
+        public DbSet<SupportEmailMessages> SupportEmailMessages { get; set; }
+
+
+        public DbSet<SupportInternalNotes> SupportInternalNotes { get; set; }
+
+        public DbSet<SupportCustomerNotes> SupportCustomerNotes { get; set; }
 		public override int SaveChanges()
         {
             return base.SaveChanges();
         }
+
+
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return await base.SaveChangesAsync(cancellationToken);

@@ -18,7 +18,8 @@ namespace Varadhi.Controllers
         private readonly IConfiguration _configuration;
 		private readonly IAgentCustomerService _agentCustomerService;
         private readonly IChatService _chatService;
-		public UserController(ApplicationDbContext context,IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService,IChatService chatService) 
+		private readonly SocketIoService _socketIOService;
+		public UserController(ApplicationDbContext context,IAgentService agentService, IEmailService emailService, IConfiguration configuration, IAgentCustomerService agentCustomerService,IChatService chatService, SocketIoService socketIOService ) 
         {
 			_context = context;
 			_agentService = agentService;
@@ -26,6 +27,8 @@ namespace Varadhi.Controllers
             _configuration = configuration;
 			_agentCustomerService = agentCustomerService;
             _chatService = chatService;
+			_socketIOService = socketIOService;
+
 		}
 		
 
@@ -184,23 +187,57 @@ namespace Varadhi.Controllers
 			return StatusCode(500, new { status = "error", message });
 		}
 		[HttpPost("raiseTicket")]
+		//public async Task<IActionResult> RaiseTicket([FromBody] RaiseTicketRequest request)
+		//{
+		//	// Validate required fields
+		//	if (request.TenantId <= 0 || string.IsNullOrEmpty(request.CustomerId) || string.IsNullOrEmpty(request.Complaint))
+		//	{
+		//		return BadRequest(new { status = "error", message = "tenantId, customerId, and complaint are required fields." });
+		//	}
+
+		//	var (success, message,ticketid) = await _agentCustomerService.RaiseTicketAsync(request);
+
+		//	if (success)
+		//	{
+		//		return Ok(new { status = "success", message,tickeId = ticketid });
+		//	}
+
+		//	return StatusCode(500, new { status = "error", message,ticketId = null });
+		//}
 		public async Task<IActionResult> RaiseTicket([FromBody] RaiseTicketRequest request)
 		{
 			// Validate required fields
 			if (request.TenantId <= 0 || string.IsNullOrEmpty(request.CustomerId) || string.IsNullOrEmpty(request.Complaint))
 			{
-				return BadRequest(new { status = "error", message = "tenantId, customerId, and complaint are required fields." });
+				return BadRequest(new
+				{
+					status = "error",
+					message = "TenantId, CustomerId, and Complaint are required fields."
+				});
 			}
 
-			var (success, message) = await _agentCustomerService.RaiseTicketAsync(request);
-
+			// Call the service to raise the ticket
+			var (success, message, ticketId) = await _agentCustomerService.RaiseTicketAsync(request);
 			if (success)
 			{
-				return Ok(new { status = "success", message });
+				// Return a success response with the ticket ID
+				return Ok(new
+				{
+					status = "success",
+					message,
+					ticketId
+				});
 			}
 
-			return StatusCode(500, new { status = "error", message });
+			// Return an error response with a null ticket ID
+			return StatusCode(500, new
+			{
+				status = "error",
+				message,
+				ticketId = (int?)null
+			});
 		}
+
 		[HttpPost("getAllTickets")]
 		public async Task<IActionResult> GetAllTickets([FromBody] TicketRequest request)
 		{
@@ -368,6 +405,14 @@ namespace Varadhi.Controllers
 
 			if (result.Success)
 			{
+				var eventData = new
+				{
+					TicketId = result.TicketId,
+					AgentId = request.AgentId,
+					Status = "Assigned"
+				};
+
+				await _socketIOService.EmitEventAsync("ticketAssigned", eventData);
 				return Ok(result);
 			}
 			else

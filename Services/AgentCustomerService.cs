@@ -266,7 +266,7 @@ namespace Varadhi.Services
 				return (false, $"An error occurred while updating the socket ID: {ex.Message}");
 			}
 		}
-		public async Task<(bool success, string message)> RaiseTicketAsync(RaiseTicketRequest request)
+		public async Task<(bool success, string message, int?ticketId)> RaiseTicketAsync(RaiseTicketRequest request)
 		{
 			try
 			{
@@ -289,11 +289,11 @@ namespace Varadhi.Services
 				_context.SupportTickets.Add(ticket);
 				await _context.SaveChangesAsync();
 
-				return (true, "Ticket raised successfully.");
+				return (true, "Ticket raised successfully.", ticket.TicketId);
 			}
 			catch (Exception ex)
 			{
-				return (false, $"An error occurred while raising the ticket: {ex.Message}");
+				return (false, $"An error occurred while raising the ticket: {ex.Message}",null);
 			}
 		}
 		//public async Task<(bool Success, string Message, List<TicketResponse> Tickets)> GetAllTicketsAsync(TicketRequest request)

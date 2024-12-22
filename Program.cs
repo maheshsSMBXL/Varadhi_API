@@ -18,7 +18,7 @@ builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddSingleton<SocketIoService>();
 builder.Services.AddScoped<IApplicationDbContext, ApplicationDbContext>();
 builder.Services.AddScoped<IAgentService, AgentService>();
 builder.Services.AddScoped<IEmailService, EmailService>();

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Varadhi.Data;
 
@@ -11,9 +12,11 @@ using Varadhi.Data;
 namespace Varadhi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241219072036_addedEmailMessageTable")]
+    partial class addedEmailMessageTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -490,48 +493,6 @@ namespace Varadhi.Migrations
                     b.ToTable("SupportChats");
                 });
 
-            modelBuilder.Entity("Varadhi.Data.SupportCustomerNotes", b =>
-                {
-                    b.Property<int>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
-
-                    b.Property<string>("CustomerEmail")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CustomerName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CustomerNotes")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CustomerNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("createdDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("isactive")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("updatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("updatedby")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("ID");
-
-                    b.ToTable("SupportCustomerNotes");
-                });
-
             modelBuilder.Entity("Varadhi.Data.SupportCustomerRating", b =>
                 {
                     b.Property<int>("Id")
@@ -595,20 +556,12 @@ namespace Varadhi.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("ConversationId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedDateTime")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("EmailMessageId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("HasAttachments")
                         .HasColumnType("bit");
@@ -642,8 +595,9 @@ namespace Varadhi.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("TicketId")
-                        .HasColumnType("int");
+                    b.Property<string>("TicketId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("WebLink")
                         .IsRequired()
@@ -696,36 +650,6 @@ namespace Varadhi.Migrations
                     b.HasKey("FAQSectionId");
 
                     b.ToTable("SupportFAQSection");
-                });
-
-            modelBuilder.Entity("Varadhi.Data.SupportInternalNotes", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AgentId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("InternalNotes")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("Isactive")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("TicketId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("createdDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SupportInternalNotes");
                 });
 
             modelBuilder.Entity("Varadhi.Data.SupportInvitations", b =>

@@ -10,7 +10,7 @@ namespace Varadhi.Services
 		Task<(bool success, string message)> UpdateSocketIdAsync(string agentId, string socketId);
 		Task<(bool success, string message, string customerId)> RegisterCustomerAsync(Models.CustomerRegistrationRequest request);
 		Task<(bool success, string message)> UpdateCustomerSocketIdAsync(UpdateCustomerSocketRequest request);
-		Task<(bool success, string message)> RaiseTicketAsync(RaiseTicketRequest request);
+		Task<(bool success, string message, int?ticketId)> RaiseTicketAsync(RaiseTicketRequest request);
 		Task<(bool Success, string Message, List<TicketResponse> Tickets, int TotalCount)> GetAllTicketsAsync(TicketRequest request);
 		Task<(bool Success, string Message, List<TicketResponse> Tickets)> GetTicketsByCustomerIdAsync(TicketRequestCustomer request);
 		Task<UpdateTicketResponse> UpdateTicketStatusAsync(UpdateTicketRequest request);

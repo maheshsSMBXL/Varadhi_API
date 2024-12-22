@@ -1086,12 +1086,20 @@ namespace Varadhi.Controllers
 									.Where(t => t.TicketId == ticketId)
 									   .Select(t => t.Reply)
 									.FirstOrDefaultAsync());
-
+			
 				if (ticketInfo != null)
 				{
+					if (!string.IsNullOrEmpty(ticketInfo.AssignedTo) && ticketInfo.AssignedTo != "Unassigned")
+					{
+						var agentName = await _context.SupportAgents.Where(sa => sa.AgentId == ticketInfo.AssignedTo).Select(sa => sa.Name).FirstOrDefaultAsync();
+
+						response.AgentName = agentName;
+					}
+
 					// Return success response with ticket details
 					response.Status = "success";
 					response.Message = "Ticket details retrieved successfully.";
+					
 					if (replyinfo != null)
 					{
 						response.Reply = replyinfo;

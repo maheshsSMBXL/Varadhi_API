@@ -28,6 +28,12 @@ namespace Varadhi.Data
         DbSet<PasswordChangeLog> PasswordChangeLogs { get; set; }
 
         DbSet<SupportTicketResponse> SupportTicketResponse { get; set; }
+
+        DbSet<SupportEmailMessages> SupportEmailMessages { get; set; }
+
+        DbSet<SupportInternalNotes> SupportInternalNotes { get; set; }
+
+        DbSet<SupportCustomerNotes> SupportCustomerNotes { get; set; }
 		int SaveChanges();
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
