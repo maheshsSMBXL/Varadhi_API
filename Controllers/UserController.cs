@@ -220,6 +220,7 @@ namespace Varadhi.Controllers
 			var (success, message, ticketId) = await _agentCustomerService.RaiseTicketAsync(request);
 			if (success)
 			{
+				
 				// Return a success response with the ticket ID
 				return Ok(new
 				{

@@ -8,7 +8,7 @@ public class SocketIoService
 	public SocketIoService()
 	{
 		// Replace with your Socket.IO server URL
-		_socket = new SocketIO("http://localhost:8009");
+		_socket = new SocketIO("https://stage-phrx-customerchat-nodesocketserver.azurewebsites.net");
 		_socket.ConnectAsync().Wait();
 	}
 

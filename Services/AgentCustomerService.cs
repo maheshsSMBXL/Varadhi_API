@@ -19,10 +19,12 @@ namespace Varadhi.Services
 	{
 		private readonly ApplicationDbContext _context;
 		private readonly JwtSettings _jwtSettings;
-		public AgentCustomerService(ApplicationDbContext context, IOptions<JwtSettings> jwtSettings)
+		private readonly SocketIoService _socketIOService;
+		public AgentCustomerService(ApplicationDbContext context, IOptions<JwtSettings> jwtSettings, SocketIoService socketIOService)
 		{
 			_context = context;
 			_jwtSettings = jwtSettings.Value;
+			_socketIOService = socketIOService;
 		}
 
 		public async Task<AssignmentResponse> AssignCustomerToAgentAsync(AssignmentRequest request)
@@ -288,7 +290,20 @@ namespace Varadhi.Services
 				// Add and save the ticket to the database
 				_context.SupportTickets.Add(ticket);
 				await _context.SaveChangesAsync();
+				var eventData = new
+				{
+					TicketId = ticket.TicketId,
+					Message = "new Ticket arrived",
+					Mail = ticket.Email
 
+
+				};
+				if(ticket.AssignedTo == "Unassigned")
+				{
+					await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
+
+				}
+				
 				return (true, "Ticket raised successfully.", ticket.TicketId);
 			}
 			catch (Exception ex)

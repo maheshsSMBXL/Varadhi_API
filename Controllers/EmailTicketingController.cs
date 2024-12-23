@@ -12,11 +12,13 @@ namespace Varadhi.Controllers
 		private readonly ApplicationDbContext _context;
 		private readonly IEmailService _emailService;
 		private readonly IConfiguration _configuration;
-		public EmailTicketingController(ApplicationDbContext context, IEmailService emailService, IConfiguration configuration)
+		private readonly SocketIoService _socketIOService;
+		public EmailTicketingController(ApplicationDbContext context, IEmailService emailService, IConfiguration configuration, SocketIoService socketIOService)
 		{
 			_context = context;
 			_emailService = emailService;
 			_configuration = configuration;
+			_socketIOService = socketIOService;
 
 		}
 
@@ -120,6 +122,27 @@ namespace Varadhi.Controllers
 				};
 				await _context.SupportEmailMessages.AddAsync(EmailMessage);
 				_context.SaveChanges();
+				var assignedAgent = await _context.SupportTickets.Where(em => em.TicketId == request.TicketId).Select(em => new
+				{
+					AssignedTo = em.AssignedTo
+				}).FirstOrDefaultAsync();
+				var eventData = new
+				{
+					TicketId = EmailMessage.TicketId,
+					AgentId = assignedAgent,
+					Message = "New Message From Ticket",
+
+
+				};
+				if (request.Sender == "Customer")
+				{
+					if(assignedAgent.AssignedTo != "Unassigned" )
+					{
+						await _socketIOService.EmitEventAsync("NewEmailMessage", eventData);
+					}
+					
+				}
+				
 				return Ok(
 					new
 					{
@@ -547,7 +570,12 @@ namespace Varadhi.Controllers
 
 			if (latestEmail == null)
 			{
-				return NotFound("No customer emails found for the given ticket ID.");
+				return NotFound(new
+				{
+					success = true,
+					isavaialble=false,
+					message = "No ticketid is available"
+				});
 			}
 
 			return Ok(latestEmail);
@@ -649,6 +677,54 @@ namespace Varadhi.Controllers
 			});
 		}
 
+
+		[HttpPost("getTicketsByEmailId")]
+
+		public async Task<IActionResult> GetTicketsByEmailId([FromBody] GetTicketsByEmailIdDto request)
+
+		{
+
+			// Validate the email address
+
+			if (string.IsNullOrEmpty(request.Email))
+
+			{
+
+				return BadRequest(new { success = false, message = "Invalid email address." });
+
+			}
+
+			// Fetch all tickets associated with the email
+
+			var tickets = await _context.SupportTickets
+							.Where(t => t.Email == request.Email)
+							.Select(t => new
+							{
+								TicketId = t.TicketId,
+								EmailId = t.Email,
+								Complaint = t.Complaint,
+								Comments = t.Comments,
+								CreatedDate = t.CreatedAt,
+								Status = t.Status
+							})
+							.ToListAsync();
+
+
+			return Ok(new
+
+			{
+
+				success = true,
+
+				email = request.Email,
+
+				ticketCount = tickets.Count,
+
+				tickets = tickets
+
+			});
+
+		}
 
 
 		// DTO for request
