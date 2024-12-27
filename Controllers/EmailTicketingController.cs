@@ -726,6 +726,122 @@ namespace Varadhi.Controllers
 
 		}
 
+		[HttpPost("validateDuplicateTicket")]
+
+
+		public async Task<IActionResult> ValidateDuplicateTicket([FromBody] ValidateDuplicateTktDto request)
+
+		{
+
+			// Validate the email address
+
+			if (string.IsNullOrEmpty(request.customerId))
+
+			{
+
+				return BadRequest(new { success = false, message = "Invalid CustomerID" });
+
+			}
+
+			// Fetch all tickets associated with the email
+
+			var tickets = await _context.SupportTickets
+							.Where(t => t.CustomerId == request.customerId)
+							.Select(t => new
+							{
+								TicketId = t.TicketId,
+								EmailId = t.Email,
+								Complaint = t.Complaint,
+								Comments = t.Comments,
+								CreatedDate = t.CreatedAt,
+								Status = t.Status
+							})
+							.ToListAsync();
+
+			if(tickets.Count == 0)
+			{
+				return Ok(new
+
+				{
+
+					success = true,
+					isavailable = false,
+					message = "Ticket is not Available",
+
+				});
+			}
+
+			return Ok(new
+
+			{
+
+				success = true,
+				isavailable = true,
+				email = tickets[0].TicketId,
+
+				message ="Ticket Already Available",
+
+			});
+
+		}
+
+
+
+		[HttpPost("CheckInReplyTo")]
+
+
+		public async Task<IActionResult> CheckInReplyTo([FromBody] CheckInReplyToDto request)
+
+		{
+
+			// Validate the email address
+
+			if (string.IsNullOrEmpty(request.inReplyTo))
+
+			{
+
+				return BadRequest(new { success = false, message = "Invalid CustomerID" });
+
+			}
+
+			// Fetch all tickets associated with the email
+
+			var tickets = await _context.SupportEmailMessages
+							.Where(t => t.InternetMessageId == request.inReplyTo)
+							.Select(t => new
+							{
+								messageId = t.EmailMessageId,
+								ticketid = t.TicketId,
+							})
+							.ToListAsync();
+
+			if (tickets.Count == 0)
+			{
+				return Ok(new
+
+				{
+
+					success = true,
+					isavailable = false,
+					message = "Reply mail is not available",
+
+				});
+			}
+
+			return Ok(new
+
+			{
+
+				success = true,
+				isavailable = true,
+				ticketid = tickets[0].ticketid,
+
+				message = "Ticket Already Available",
+
+			});
+
+		}
+
 
 		// DTO for request
 		public class TicketRequestDto

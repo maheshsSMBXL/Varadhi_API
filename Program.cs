@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.FileProviders;
 var builder = WebApplication.CreateBuilder(args);
 var jwtSettingsSection = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
@@ -26,7 +29,26 @@ builder.Services.AddScoped<IAgentCustomerService, AgentCustomerService>();
 builder.Services.AddScoped<IChatService, ChatService>();
 // For Entity Framework
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+//blob service dependency injection
+// Read Azure Blob Storage configuration
+var azureBlobConfig = builder.Configuration.GetSection("AzureBlobStorage");
+string blobConnectionString = azureBlobConfig.GetValue<string>("ConnectionString");
+string blobContainerName = azureBlobConfig.GetValue<string>("ContainerName");
 
+// Register BlobServiceClient
+builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
+
+// Register BlobContainerClient
+builder.Services.AddSingleton(x =>
+{
+	var blobServiceClient = x.GetRequiredService<BlobServiceClient>();
+	var containerClient = blobServiceClient.GetBlobContainerClient(blobContainerName);
+	containerClient.CreateIfNotExists(PublicAccessType.Blob);
+	return containerClient;
+});
+
+
+//end of blob dependency injection
 //For Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -92,10 +114,6 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
-builder.Services.AddControllers(options =>
-{
-    options.ModelBinderProviders.Insert(0, new JsonModelBinderProvider());
-});
 
 var app = builder.Build();
 

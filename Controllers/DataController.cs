@@ -17,6 +17,8 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using Azure.Core;
+using Azure.Storage.Blobs.Models;
 
 namespace Varadhi.Controllers
 {
@@ -26,11 +28,12 @@ namespace Varadhi.Controllers
 		private readonly IEmailService _emailService;
 		private const string EncryptionKey = "12345678901234567890123456789012"; // Ensure this is 32 characters long
 		private const string FixedIV = "1234567890123456"; // Ensure this is 16 characters long
-	
-		public DataController(ApplicationDbContext context, IEmailService emailService)
+		private readonly BlobContainerClient _blobContainerClient;
+		public DataController(ApplicationDbContext context, IEmailService emailService, BlobContainerClient blobContainerClient)
 		{
 			_context = context;
 			_emailService = emailService;
+			_blobContainerClient = blobContainerClient;
 
 		}
 
@@ -1271,6 +1274,81 @@ namespace Varadhi.Controllers
 		//		return StatusCode(500, new { Success = false, Message = "An error occurred during image upload.", Error = ex.Message });
 		//	}
 		//}
+		[HttpPost("postchatimage")]
+		[Consumes("multipart/form-data")]
+		public async Task<IActionResult> Postchatimage([FromForm] UploadChatImageModel model, [FromServices] IWebHostEnvironment env)
+		{
+			if (!ModelState.IsValid)
+			{
+				return BadRequest(ModelState);
+			}
+			if (model == null)
+			{
+				return BadRequest("Invalid request.");
+			}
+			string fileName = null;
+			string blobUrl = null;
 
+			if (model.FileUrl != null && model.FileUrl.Length > 0)
+			{
+				// Validate the file (optional but recommended)
+				var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp" };
+				var extension = Path.GetExtension(model.FileUrl.FileName).ToLowerInvariant();
+
+				if (string.IsNullOrEmpty(extension) || Array.IndexOf(allowedExtensions, extension) < 0)
+				{
+					return BadRequest("Invalid file type. Allowed types are jpg, jpeg, png, gif, bmp.");
+				}
+
+				// Generate a unique file name to prevent overwriting
+				fileName = $"{Guid.NewGuid()}{extension}";
+
+				// Upload the file to Azure Blob Storage
+				try
+				{
+					var blobContainerClient = _blobContainerClient; // Injected BlobContainerClient
+					var blobClient = blobContainerClient.GetBlobClient(fileName);
+
+					using (var stream = model.FileUrl.OpenReadStream())
+					{
+						await blobClient.UploadAsync(stream, new BlobHttpHeaders { ContentType = model.FileUrl.ContentType });
+					}
+
+					// Get the Blob URL
+					blobUrl = blobClient.Uri.ToString();
+				}
+				catch (Exception ex)
+				{
+					// Log the exception
+					//_logger.LogError(ex, "Error uploading file to Azure Blob Storage.");
+					return StatusCode(500, "Internal server error while uploading the file.");
+				}
+			}
+
+			// Create the ChatImage entity
+			var chatImage = new SupportChats
+			{
+				TenantId = model.TenantId,
+				AgentId = model.AgentId,
+				CustomerId = model.CustomerId,
+				Message = model.Message,
+				Sender = model.Sender,
+				FileUrl = blobUrl,
+				FileName = fileName,
+				CreatedAt = DateTime.UtcNow // Ensure CreatedAt is set
+											// UploadedAt is automatically set to DateTime.UtcNow
+			};
+
+			// Add the entity to the database
+			_context.SupportChats.Add(chatImage);
+			await _context.SaveChangesAsync();
+			return Ok(new
+			{
+				Message = "Chat image uploaded successfully.",
+				ChatImageId = chatImage.ChatId,
+				FileName = chatImage.FileName,
+				FileUrl = chatImage.FileUrl, // Updated to return Blob URL
+			});
+		}
 	}
 }
