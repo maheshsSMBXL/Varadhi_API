@@ -251,7 +251,7 @@ namespace Varadhi.Controllers
 
 				// Encrypt the data using AES-256
 				var encryptedData = EncryptData(EncryptionKey, FixedIV, dataToEncrypt);
-				var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
+				var invitationLink = $"https://chatagent.personalizedhealthrx.com/register/?invitation={encryptedData}";
 
 				// Prepare email content for the invitation
 				var emailData = new EmailData
@@ -566,7 +566,7 @@ namespace Varadhi.Controllers
 				Console.WriteLine("Encrypted Data: " + encryptedData);
 
 				// Generate the invitation link
-				var invitationLink = $"https://stage-phrx-agentchat-webapp.azurewebsites.net/register/?invitation={encryptedData}";
+				var invitationLink = $"https://chatagent.personalizedhealthrx.com/register/?invitation={encryptedData}";
 
 				// Prepare email content for the invitation
 				var emailData = new EmailData
