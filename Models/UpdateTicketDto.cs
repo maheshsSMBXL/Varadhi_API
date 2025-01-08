@@ -8,5 +8,7 @@
 
 		public string? email { get;set; }
 
+		public string? destination { get; set; }
+
 	}
 }

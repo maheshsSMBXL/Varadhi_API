@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mail;
+using System.Net.Sockets;
 using Varadhi.Data;
 using Varadhi.Models;
 using Varadhi.Services;
@@ -536,8 +537,22 @@ namespace Varadhi.Controllers
 				ticketDetails.Email = request.email;
 			}
 
-			// Save changes to the database
-			_context.SupportTickets.Update(ticketDetails);
+            if (!string.IsNullOrWhiteSpace(request.destination))
+            {
+                ticketDetails.Destination = request.destination;
+                var eventData = new
+                {
+                    TicketId = ticketDetails.TicketId,
+                    Message = "new Ticket arrived",
+                    Mail = ticketDetails.Email
+
+
+                };
+                await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
+            }
+
+            // Save changes to the database
+            _context.SupportTickets.Update(ticketDetails);
 			await _context.SaveChangesAsync();
 
 			return Ok(new { success = true, message = "Ticket details updated successfully." });
@@ -616,7 +631,9 @@ namespace Varadhi.Controllers
 				State = customerDetail?.Region,
 				Country = customerDetail?.CountryCode,
 				CustomerNotes = customerNotes.Any() ? customerNotes.Select(n => n.CustomerNotes) : null,
-				LastTicketDate = ticket.CreatedAt
+				LastTicketDate = ticket.CreatedAt,
+				CustomerId=customerDetail.CustomerId
+				
 			};
 
 			return Ok(response);
@@ -843,8 +860,88 @@ namespace Varadhi.Controllers
 		}
 
 
-		// DTO for request
-		public class TicketRequestDto
+
+
+        [HttpPost("UpdateCustomerName")]
+
+
+        public async Task<IActionResult> UpdateCustomerName([FromBody] UpdateCustomerNameDto request)
+
+        {
+
+            // Validate the email address
+
+            if (string.IsNullOrEmpty(request.CustomerId))
+
+            {
+
+                return BadRequest(new { success = false, message = "Invalid CustomerID" });
+
+            }
+
+            // Fetch all tickets associated with the email
+            var customerDetail=await _context.CustomerDetailInfo.FirstOrDefaultAsync(t=>t.CustomerId==request.CustomerId);
+            if (customerDetail == null)
+            {
+                return BadRequest(new { success = false, message = "customerDetails not found." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                customerDetail.Name = request.Name;
+            }
+
+            _context.CustomerDetailInfo.Update(customerDetail);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, message = "Customer name updated successfully." });
+
+        }
+
+
+        [HttpPost("GetCustomerInfoByTenantId")]
+        public async Task<IActionResult> GetCustomerInfoByTenantId([FromBody] GetCustomerInfoByTenantIdDto request)
+        {
+            try
+            {
+                // Validate the input
+                if (string.IsNullOrWhiteSpace(request.Input))
+                {
+                    return BadRequest(new { success = false, message = "Input cannot be null or empty." });
+                }
+
+                // Search for customer details
+                var results = await _context.CustomerDetailInfo
+                    .Where(c => c.Name.Contains(request.Input) || c.Email.Contains(request.Input))
+                    .Select(c => new { c.CustomerId, c.Name, c.Email })
+                    .ToListAsync();
+
+                // Check if results are empty
+                if (!results.Any())
+                {
+                    return NotFound(new { success = false, message = "No customers found matching the input criteria." });
+                }
+
+                // Return the results
+                return Ok(new { success = true, data = results });
+            }
+            catch (Exception ex)
+            {
+
+
+                // Return a generic error response
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    success = false,
+                    message = "An unexpected error occurred. Please try again later."
+                });
+            }
+        }
+
+
+
+        // DTO for request
+        public class TicketRequestDto
 		{
 			public int TicketId { get; set; }
 

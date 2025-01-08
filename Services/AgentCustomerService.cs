@@ -298,7 +298,7 @@ namespace Varadhi.Services
 
 
 				};
-				if(ticket.AssignedTo == "Unassigned")
+				if(ticket.AssignedTo == "Unassigned" && ticket.Destination=="offline"||ticket.Destination=="missed-chat")
 				{
 					await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
 
@@ -380,16 +380,24 @@ namespace Varadhi.Services
 				int limit = request.End - request.Start + 1;
 
 				// Query with optional filters
-				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId);
+				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "offline" || t.Destination=="missed-chat");
+                var query2 = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "via-chat" );
 
-				if (!string.IsNullOrEmpty(request.AssignedTo))
+                if (!string.IsNullOrEmpty(request.AssignedTo))
 					query = query.Where(t => t.AssignedTo == request.AssignedTo);
 
 				if (!string.IsNullOrEmpty(request.Status))
 					query = query.Where(t => t.Status == request.Status);
 
 				if (!string.IsNullOrEmpty(request.Destination))
+                { 
+					if(request.Destination=="via-chat")
+					{
+                        query = query2.Where(t => t.Destination == request.Destination);
+                    }
 					query = query.Where(t => t.Destination == request.Destination);
+				}
+				
 
 				// Get total count before pagination
 				int totalCount = await query.CountAsync();
