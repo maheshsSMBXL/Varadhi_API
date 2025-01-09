@@ -432,23 +432,24 @@ namespace Varadhi.Controllers
 				// Fetch ticket description from SupportTickets
 				var ticketDescription = await _context.SupportTickets
 					.Where(t => t.TicketId == request.TicketId)
-					.Select(t => t.Complaint)
+                    //c => new {t.Complaint, t.CreatedAt }
+                    .Select(t => new { t.Complaint, t.CreatedAt })
 					.FirstOrDefaultAsync();
 				var detaileDescription = await _context.SupportTickets
 					.Where(t => t.TicketId == request.TicketId)
 					.Select(t => t.Comments)
 					.FirstOrDefaultAsync();
-				if (!string.IsNullOrEmpty(ticketDescription))
+				if (!string.IsNullOrEmpty(ticketDescription.Complaint))
 				{
 					combinedList.Add(new SupportActivityDto
 					{
 						Id = request.TicketId, // Using TicketId as Id for description
 						TicketId = request.TicketId,
 						Type = "TicketDescription",
-						Description = ticketDescription,
+						Description = ticketDescription.Complaint,
 						comments = detaileDescription,
-						Date = DateTime.UtcNow // Adjust as needed
-					});
+						Date = (DateTime)ticketDescription.CreatedAt// Adjust as needed
+                    });
 				}
 			}
 			else if (request.type.Equals("online", StringComparison.OrdinalIgnoreCase))
@@ -480,7 +481,7 @@ namespace Varadhi.Controllers
 						TicketId = request.TicketId,
 						Type = "Agent",
 						Sender = agentName,
-						Date = DateTime.UtcNow // Adjust as needed
+						//Date = DateTime.UtcNow // Adjust as needed
 					});
 				}
 
@@ -899,7 +900,7 @@ namespace Varadhi.Controllers
         }
 
 
-        [HttpPost("GetCustomerInfoByTenantId")]
+        [HttpPost("GetCustomerByTenantId")]
         public async Task<IActionResult> GetCustomerInfoByTenantId([FromBody] GetCustomerInfoByTenantIdDto request)
         {
             try
@@ -924,6 +925,46 @@ namespace Varadhi.Controllers
 
                 // Return the results
                 return Ok(new { success = true, data = results });
+            }
+            catch (Exception ex)
+            {
+
+
+                // Return a generic error response
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    success = false,
+                    message = "An unexpected error occurred. Please try again later."
+                });
+            }
+        }
+
+        //validate email for customercreation
+        [HttpPost("ValidateEmailCustomer")]
+        public async Task<IActionResult> ValidateEmailCustomer([FromBody] ValidateEmailCustomerDto request)
+        {
+            try
+            {
+                // Validate the input
+                if (string.IsNullOrWhiteSpace(request.Email))
+                {
+                    return BadRequest(new { success = false, message = "Input cannot be null or empty." });
+                }
+
+                // Search for customer details
+                var results = await _context.CustomerDetailInfo
+                    .Where(c => c.Email.Contains(request.Email))
+                    .Select(c => new { c.CustomerId, c.Name, c.Email })
+                    .ToListAsync();
+
+                // Check if results are empty
+                if (!results.Any())
+                {
+                    return Ok(new { success = true,isavailable = false, message = "No customers found matching the input criteria." });
+                }
+
+                // Return the results
+                return Ok(new { success = true, isavailable = true, message = "Email ALready Exsist" });
             }
             catch (Exception ex)
             {
