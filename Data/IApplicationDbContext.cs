@@ -34,6 +34,8 @@ namespace Varadhi.Data
         DbSet<SupportInternalNotes> SupportInternalNotes { get; set; }
 
         DbSet<SupportCustomerNotes> SupportCustomerNotes { get; set; }
+
+        DbSet<SupportAgentSignature> SupportAgentSignature { get; set; }
 		int SaveChanges();
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

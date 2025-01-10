@@ -37,6 +37,8 @@ namespace Varadhi.Data
 
         public DbSet<SupportInternalNotes> SupportInternalNotes { get; set; }
 
+        public DbSet<SupportAgentSignature> SupportAgentSignature { get; set; }
+
         public DbSet<SupportCustomerNotes> SupportCustomerNotes { get; set; }
 		public override int SaveChanges()
         {

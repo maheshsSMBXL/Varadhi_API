@@ -4,8 +4,8 @@
     {
 
         public string? Name { get; set; }
+		public int? ticketId { get; set; }
 
-        public string? CustomerId { get; set; }
-
+		
     }
 }

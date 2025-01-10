@@ -409,25 +409,44 @@ namespace Varadhi.Controllers
 				.ToListAsync();
 
 			combinedList.AddRange(emailMessages);
-
-			// Fetch internal notes
-			var internalNotes = await _context.SupportInternalNotes
+			var internalNotesData = await _context.SupportInternalNotes
 				.Where(inote => inote.TicketId == request.TicketId && inote.Isactive)
-				.Select(inote => new SupportActivityDto
-				{
-					Id = inote.Id,
-					TicketId = inote.TicketId,
-					Type = "InternalNote",
-					InternalNotes = inote.InternalNotes,
-					AgentId = inote.AgentId,
-					Date = inote.createdDate 
-				})
-				.ToListAsync();
+				.ToListAsync(); // Retrieve data first
 
-			combinedList.AddRange(internalNotes);
+			var internalNotes = internalNotesData.Select(async inote => new SupportActivityDto
+			{
+				Id = inote.Id,
+				TicketId = inote.TicketId,
+				Type = "InternalNote",
+				InternalNotes = inote.InternalNotes,
+				AgentId = await _context.SupportAgents
+					.Where(t => t.AgentId == inote.AgentId)
+					.Select(t => t.Name)
+					.FirstOrDefaultAsync(), // Use await correctly here
+				Date = inote.createdDate
+			}).ToList(); // This creates a list of Task<SupportActivityDto>
+			var resolvedInternalNotes = await Task.WhenAll(internalNotes);
+			// Fetch internal notes
+			//var internalNotes = await _context.SupportInternalNotes
+			//	.Where(inote => inote.TicketId == request.TicketId && inote.Isactive)
+			//	.Select(async inote => new SupportActivityDto
+			//	{
+			//		Id = inote.Id,
+			//		TicketId = inote.TicketId,
+			//		Type = "InternalNote",
+			//		InternalNotes = inote.InternalNotes,
+			//		AgentId = await _context.SupportAgents
+			//				.Where(t => t.AgentId == inote.AgentId)
+			//				.Select(t => t.Name)
+			//				.FirstOrDefault(),
+			//		Date = inote.createdDate
+			//	})
+			//	.ToListAsync();
+
+			combinedList.AddRange(resolvedInternalNotes);
 
 			// Additional data based on the ticket type
-			if (request.type.Equals("offline", StringComparison.OrdinalIgnoreCase))
+			if (request.type.Equals("offline", StringComparison.OrdinalIgnoreCase) || request.type.Equals("missed-chat", StringComparison.OrdinalIgnoreCase))
 			{
 				// Fetch ticket description from SupportTickets
 				var ticketDescription = await _context.SupportTickets
@@ -452,7 +471,7 @@ namespace Varadhi.Controllers
                     });
 				}
 			}
-			else if (request.type.Equals("online", StringComparison.OrdinalIgnoreCase))
+			else if (request.type.Equals("online", StringComparison.OrdinalIgnoreCase) || request.type.Equals("via-chat", StringComparison.OrdinalIgnoreCase))
 			{
 				// Fetch assigned agent's name
 				var assignedAgentId = await _context.SupportTickets
@@ -627,7 +646,7 @@ namespace Varadhi.Controllers
 			{
 				TicketId = ticket.TicketId,
 				Email = email,
-				Name = customerDetail?.Name,
+				Name = ticket.CustomerName,
 				IP = customerDetail?.IP,
 				State = customerDetail?.Region,
 				Country = customerDetail?.CountryCode,
@@ -872,16 +891,18 @@ namespace Varadhi.Controllers
 
             // Validate the email address
 
-            if (string.IsNullOrEmpty(request.CustomerId))
+            if (request.ticketId==null)
 
             {
 
-                return BadRequest(new { success = false, message = "Invalid CustomerID" });
+                return BadRequest(new { success = false, message = "Invalid TicketId" });
 
             }
+			// Fetch all tickets associated with the email
 
-            // Fetch all tickets associated with the email
-            var customerDetail=await _context.CustomerDetailInfo.FirstOrDefaultAsync(t=>t.CustomerId==request.CustomerId);
+			var ticketDetails = await _context.SupportTickets.FirstOrDefaultAsync(t => t.TicketId == request.ticketId);
+
+			var customerDetail=await _context.CustomerDetailInfo.FirstOrDefaultAsync(t=>t.CustomerId== ticketDetails.CustomerId);
             if (customerDetail == null)
             {
                 return BadRequest(new { success = false, message = "customerDetails not found." });
@@ -890,10 +911,12 @@ namespace Varadhi.Controllers
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
                 customerDetail.Name = request.Name;
+				ticketDetails.CustomerName = request.Name;
             }
 
             _context.CustomerDetailInfo.Update(customerDetail);
-            await _context.SaveChangesAsync();
+			_context.SupportTickets.Update(ticketDetails);
+			await _context.SaveChangesAsync();
 
             return Ok(new { success = true, message = "Customer name updated successfully." });
 
@@ -980,9 +1003,79 @@ namespace Varadhi.Controllers
         }
 
 
+		[HttpPost("PostSignature")]
 
-        // DTO for request
-        public class TicketRequestDto
+
+		public async Task<IActionResult> PostSignature([FromBody] PostSignatureDto request)
+
+		{
+
+			// Validate the email address
+
+			if (request.AgentId == null)
+
+			{
+
+				return BadRequest(new { success = false, message = "Invalid AgentId" });
+
+			}
+			// Fetch all tickets associated with the email
+
+			var getsignature = await _context.SupportAgentSignature.FirstOrDefaultAsync(t=>t.AgentId == request.AgentId);
+
+			if(getsignature == null)
+			{
+				var postsignature = new SupportAgentSignature
+				{
+					AgentId = request.AgentId,
+					createdAt = DateTime.Now,
+					Signature = request.Signature
+				};
+				await _context.SupportAgentSignature.AddAsync(postsignature);
+
+			}
+			else
+			{
+				getsignature.Signature = request.Signature;
+				getsignature.updatedAt = DateTime.Now;
+				_context.SupportAgentSignature.Update(getsignature);
+			}
+			await _context.SaveChangesAsync();
+
+			return Ok(new { success = true, message = "Signature saved successfully." });
+		}
+
+
+		[HttpPost("getSignature")]
+		public async Task<IActionResult> GetSignature([FromBody] GetSignatureDto request)
+		{
+			// Validate the AgentId
+			if (request.AgentId == null)
+			{
+				return BadRequest(new { success = false, message = "Invalid AgentId" });
+			}
+
+			// Fetch the signature associated with the AgentId
+			var getsignature = await _context.SupportAgentSignature.FirstOrDefaultAsync(t => t.AgentId == request.AgentId);
+
+			if (getsignature == null)
+			{
+				return Ok(new { success = false, message = "No Signature Found" });
+			}
+
+			return Ok(new
+			{
+				success = true,
+				message = "Signature found",
+				signature = getsignature.Signature,
+				agentId = getsignature.AgentId
+			});
+		}
+
+
+
+		// DTO for request
+		public class TicketRequestDto
 		{
 			public int TicketId { get; set; }
 
