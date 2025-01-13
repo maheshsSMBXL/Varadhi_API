@@ -380,7 +380,7 @@ namespace Varadhi.Services
 				int limit = request.End - request.Start + 1;
 
 				// Query with optional filters
-				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "offline" || t.Destination=="missed-chat");
+				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "offline" || t.Destination=="missed-chat" || t.Destination == "Email");
                 var query2 = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "via-chat" );
 
                 if (!string.IsNullOrEmpty(request.AssignedTo))

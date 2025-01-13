@@ -413,19 +413,43 @@ namespace Varadhi.Controllers
 				.Where(inote => inote.TicketId == request.TicketId && inote.Isactive)
 				.ToListAsync(); // Retrieve data first
 
-			var internalNotes = internalNotesData.Select(async inote => new SupportActivityDto
+			//var internalNotes = internalNotesData.Select(async inote => new SupportActivityDto
+			//{
+			//	Id = inote.Id,
+			//	TicketId = inote.TicketId,
+			//	Type = "InternalNote",
+			//	InternalNotes = inote.InternalNotes,
+			//	AgentId = await _context.SupportAgents
+			//		.Where(t => t.AgentId == inote.AgentId)
+			//		.Select(t => t.Name)
+			//		.FirstOrDefaultAsync(), // Use await correctly here
+			//	Date = inote.createdDate
+			//}).ToList(); // This creates a list of Task<SupportActivityDto>
+			//var resolvedInternalNotes = await Task.WhenAll(internalNotes);
+
+			//new
+			// Map and fetch additional data (sequentially or in parallel safely)
+			var internalNotes = new List<SupportActivityDto>();
+			foreach (var inote in internalNotesData)
 			{
-				Id = inote.Id,
-				TicketId = inote.TicketId,
-				Type = "InternalNote",
-				InternalNotes = inote.InternalNotes,
-				AgentId = await _context.SupportAgents
+				// Fetch agent name for each note
+				var agentName = await _context.SupportAgents
 					.Where(t => t.AgentId == inote.AgentId)
 					.Select(t => t.Name)
-					.FirstOrDefaultAsync(), // Use await correctly here
-				Date = inote.createdDate
-			}).ToList(); // This creates a list of Task<SupportActivityDto>
-			var resolvedInternalNotes = await Task.WhenAll(internalNotes);
+					.FirstOrDefaultAsync();
+
+				internalNotes.Add(new SupportActivityDto
+				{
+					Id = inote.Id,
+					TicketId = inote.TicketId,
+					Type = "InternalNote",
+					InternalNotes = inote.InternalNotes,
+					AgentId = agentName, // Assign the fetched agent name
+					Date = inote.createdDate
+				});
+			}
+
+			combinedList.AddRange(internalNotes);
 			// Fetch internal notes
 			//var internalNotes = await _context.SupportInternalNotes
 			//	.Where(inote => inote.TicketId == request.TicketId && inote.Isactive)
@@ -443,7 +467,7 @@ namespace Varadhi.Controllers
 			//	})
 			//	.ToListAsync();
 
-			combinedList.AddRange(resolvedInternalNotes);
+			//combinedList.AddRange(resolvedInternalNotes);
 
 			// Additional data based on the ticket type
 			if (request.type.Equals("offline", StringComparison.OrdinalIgnoreCase) || request.type.Equals("missed-chat", StringComparison.OrdinalIgnoreCase))
@@ -529,50 +553,126 @@ namespace Varadhi.Controllers
 			return Ok(new { success = true, activities = orderedList });
 		}
 
+		//[HttpPost("updateTicketDetails")]
+		//public async Task<IActionResult> UpdateTicketDetails([FromBody] UpdateTicketDto request)
+		//{
+		//	// Validate the incoming request
+		//	if (request == null || request.Ticketid <= 0)
+		//	{
+		//		return BadRequest(new { success = false, message = "Invalid ticket ID." });
+		//	}
+
+		//	if (!string.IsNullOrWhiteSpace(request.customerId))
+		//	{
+		//		var ticketDetails1 = await _context.SupportTickets
+		//			.Where(r => r.CustomerId == request.customerId)
+		//			.OrderByDescending(r => r.CreatedAt) // assuming CreatedDate exists
+		//			.FirstOrDefaultAsync();
+		//	}
+
+
+		//	// Fetch the ticket details from the database
+		//	var ticketDetails = await _context.SupportTickets.FirstOrDefaultAsync(r => r.TicketId == request.Ticketid);
+
+		//	if (ticketDetails == null)
+		//	{
+		//		return BadRequest(new { success = false, message = "Ticket ID not found." });
+		//	}
+
+		//	// Update fields only if they are provided in the request
+		//	if (!string.IsNullOrWhiteSpace(request.subject))
+		//	{
+		//		ticketDetails.Complaint = request.subject;
+		//	}
+
+		//	if (!string.IsNullOrWhiteSpace(request.email))
+		//	{
+		//		ticketDetails.Email = request.email;
+		//	}
+
+		//          if (!string.IsNullOrWhiteSpace(request.destination))
+		//          {
+		//              ticketDetails.Destination = request.destination;
+		//              var eventData = new
+		//              {
+		//                  TicketId = ticketDetails.TicketId,
+		//                  Message = "new Ticket arrived",
+		//                  Mail = ticketDetails.Email
+
+
+		//              };
+		//              await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
+		//          }
+
+		//          // Save changes to the database
+		//          _context.SupportTickets.Update(ticketDetails);
+		//	await _context.SaveChangesAsync();
+
+		//	return Ok(new { success = true, message = "Ticket details updated successfully." });
+		//}
+
+
 		[HttpPost("updateTicketDetails")]
 		public async Task<IActionResult> UpdateTicketDetails([FromBody] UpdateTicketDto request)
 		{
-			// Validate the incoming request
-			if (request == null || request.Ticketid <= 0)
+			// Validate the incoming request: Ensure either customerId or Ticketid is provided.
+			if (request == null )
 			{
-				return BadRequest(new { success = false, message = "Invalid ticket ID." });
+				return BadRequest(new { success = false, message = "Invalid request. Please provide either customerId or a valid Ticketid." });
 			}
 
-			// Fetch the ticket details from the database
-			var ticketDetails = await _context.SupportTickets.FirstOrDefaultAsync(r => r.TicketId == request.Ticketid);
+			SupportTickets ticketToUpdate = null;
 
-			if (ticketDetails == null)
+			// Priority: if customerId is provided, operate on the latest ticket for that customer.
+			if (!string.IsNullOrWhiteSpace(request.customerId))
 			{
-				return BadRequest(new { success = false, message = "Ticket ID not found." });
+				ticketToUpdate = await _context.SupportTickets
+					.Where(r => r.CustomerId == request.customerId)
+					.OrderByDescending(r => r.CreatedAt) // Ensure it orders by CreatedAt descending to pick the latest ticket
+					.FirstOrDefaultAsync();
+
+				if (ticketToUpdate == null)
+				{
+					return BadRequest(new { success = false, message = "No ticket found for the provided customerId." });
+				}
+			}
+			else // Otherwise, use Ticketid
+			{
+				ticketToUpdate = await _context.SupportTickets.FirstOrDefaultAsync(r => r.TicketId == request.Ticketid);
+
+				if (ticketToUpdate == null)
+				{
+					return BadRequest(new { success = false, message = "Ticket ID not found." });
+				}
 			}
 
 			// Update fields only if they are provided in the request
 			if (!string.IsNullOrWhiteSpace(request.subject))
 			{
-				ticketDetails.Complaint = request.subject;
+				ticketToUpdate.Complaint = request.subject;
 			}
 
 			if (!string.IsNullOrWhiteSpace(request.email))
 			{
-				ticketDetails.Email = request.email;
+				ticketToUpdate.Email = request.email;
 			}
 
-            if (!string.IsNullOrWhiteSpace(request.destination))
-            {
-                ticketDetails.Destination = request.destination;
-                var eventData = new
-                {
-                    TicketId = ticketDetails.TicketId,
-                    Message = "new Ticket arrived",
-                    Mail = ticketDetails.Email
+			if (!string.IsNullOrWhiteSpace(request.destination))
+			{
+				ticketToUpdate.Destination = request.destination;
 
+				// Emit an event via socket if needed.
+				var eventData = new
+				{
+					TicketId = ticketToUpdate.TicketId,
+					Message = "New Ticket arrived",
+					Mail = ticketToUpdate.Email
+				};
+				await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
+			}
 
-                };
-                await _socketIOService.EmitEventAsync("NewTicketArrival", eventData);
-            }
-
-            // Save changes to the database
-            _context.SupportTickets.Update(ticketDetails);
+			// Save changes to the database
+			_context.SupportTickets.Update(ticketToUpdate);
 			await _context.SaveChangesAsync();
 
 			return Ok(new { success = true, message = "Ticket details updated successfully." });

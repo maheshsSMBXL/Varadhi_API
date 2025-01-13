@@ -4,7 +4,9 @@
 	{
 		public string? subject { get; set; }
 
-		public int Ticketid { get; set; }
+		public int? Ticketid { get; set; }
+
+		public string? customerId { get; set; }
 
 		public string? email { get;set; }
 
