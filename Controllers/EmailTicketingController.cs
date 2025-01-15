@@ -654,8 +654,23 @@ namespace Varadhi.Controllers
 
 			if (!string.IsNullOrWhiteSpace(request.email))
 			{
-				ticketToUpdate.Email = request.email;
-			}
+                // Fetch customer details and notes based on the email
+                var customerDetail = await _context.CustomerDetailInfo.FirstOrDefaultAsync(c => c.Email == ticketToUpdate.Email && c.CustomerId==ticketToUpdate.CustomerId);
+                var customerNotes = await _context.SupportCustomerNotes.FirstOrDefaultAsync(c => c.CustomerEmail == ticketToUpdate.Email);
+                ticketToUpdate.Email = request.email;
+				customerDetail.Email = request.email;
+				if(customerNotes!=null)
+				{
+                    customerNotes.CustomerEmail = request.email;
+                    _context.SupportCustomerNotes.Update(customerNotes);
+            
+
+                }
+                _context.CustomerDetailInfo.Update(customerDetail);
+               
+
+
+            }
 
 			if (!string.IsNullOrWhiteSpace(request.destination))
 			{
