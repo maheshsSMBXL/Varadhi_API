@@ -66,6 +66,41 @@ namespace Varadhi.Controllers
 			try
 			{
 				var tickid = await _context.SupportEmailMessages.FirstOrDefaultAsync(S => S.TicketId == request.TicketId);
+				// Fetch all records matching the TicketId and order them by date (ascending)
+				var tickets = await _context.SupportEmailMessages
+					.Where(s => s.TicketId == request.TicketId)
+					.OrderBy(s => s.CreatedDateTime) // Replace 'CreatedDate' with the actual date property
+					.ToListAsync();
+
+				// Get the total count
+				var totalRecords = tickets.Count;
+
+				// Handle conditions
+				if (totalRecords == 1)
+				{
+					var singleTicket = tickets.First();
+					if (!singleTicket.Subject.Contains("ruby", StringComparison.OrdinalIgnoreCase))
+					{
+						// Logic for one record and Subject does not contain 'ruby'
+						Console.WriteLine("Only one record and Subject does not contain 'ruby'.");
+					}
+					else
+					{
+						// Logic for one record and Subject contains 'ruby'
+						Console.WriteLine("Only one record and Subject contains 'ruby'.");
+					}
+				}
+				else if (totalRecords > 1)
+				{
+					// Logic for multiple records
+					Console.WriteLine($"More than one record found: {totalRecords} records.");
+				}
+				else
+				{
+					// Logic if no records found
+					Console.WriteLine("No records found.");
+				}
+
 				if (tickid == null)
 				{
 					return Ok(new
