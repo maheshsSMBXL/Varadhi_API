@@ -21,7 +21,7 @@ namespace Varadhi.Services
 		Task<AssignTicketResponse> AssignTicketAsync(AssignTicketRequest request);
 		Task<CustomerResponse> PostCustomerInfo(CustomerRequest request);
 		Task<CustomerResponse> GetCustomerInfo(string customerId);
-		Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId);
+		Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId, int page, int pageSize, string status);
 		Task<CustomerResponse> AddCustomerFeedbackAsync(CustomerFeedbackDto feedbackDto);
 
 		//forgot password for agent

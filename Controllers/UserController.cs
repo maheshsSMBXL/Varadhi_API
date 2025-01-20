@@ -60,7 +60,7 @@ namespace Varadhi.Controllers
                 // Prepare email content
                 var emailData = new EmailData
                 {
-                    From = "chatsupportops@personalizedhealthrx.com",
+                    From = "devchatops@personalizedhealthrx.com",
                     To = request.Email,
                     Subject = "Please Verify Your Email",
                     Body = $"Thank you for registering. Please use the following OTP to verify your email: {verificationCode}",
@@ -422,9 +422,13 @@ namespace Varadhi.Controllers
 			}
 		}
 		[HttpGet("getTicketsByAssignedTo/{agentId}")]
-		public async Task<IActionResult> GetTicketsByAssignedTo(string agentId)
+		public async Task<IActionResult> GetTicketsByAssignedTo(string agentId,
+			 [FromQuery] int page = 1,
+	[FromQuery] int pageSize = 10,
+	[FromQuery] string status = ""
+			)
 		{
-			var result = await _agentCustomerService.GetTicketsByAssignedToAsync(agentId);
+			var result = await _agentCustomerService.GetTicketsByAssignedToAsync(agentId, page, pageSize, status);
 
 			if (result.Status == "success")
 			{
@@ -544,7 +548,7 @@ namespace Varadhi.Controllers
 				// Prepare email content
 				var emailData = new EmailData
 				{
-					From = "chatsupportops@personalizedhealthrx.com",
+					From = "devchatops@personalizedhealthrx.com",
 					To = request.Email,
 					Subject = "Password Reset OTP",
 					Body = $"Your OTP for password reset is: {otp}. It is valid for 15 minutes.",

@@ -37,6 +37,8 @@ namespace Varadhi.Data
 		public string Content {  get; set; }
 
 		public string EmailMessageId { get; set; }
+
+		public string? RecievedEmail { get; set; }
 		public DateTime CreatedDateTime { get; set; } // Record creation timestamp
 	}
 }

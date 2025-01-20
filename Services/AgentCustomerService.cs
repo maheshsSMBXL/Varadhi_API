@@ -380,7 +380,7 @@ namespace Varadhi.Services
 				int limit = request.End - request.Start + 1;
 
 				// Query with optional filters
-				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "offline" || t.Destination=="missed-chat" || t.Destination == "Email");
+				var query = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "offline" || t.Destination=="missed-chat" || t.Destination == "Email" || t.Destination == "via-chat");
                 var query2 = _context.SupportTickets.Where(t => t.TenantId == request.TenantId && t.Destination == "via-chat" );
 
                 if (!string.IsNullOrEmpty(request.AssignedTo))
@@ -774,28 +774,72 @@ namespace Varadhi.Services
 				};
 			}
 		}
-		public async Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId)
+		public async Task<TicketResponseByAgentid> GetTicketsByAssignedToAsync(string agentId, int page, int pageSize, string status)
 		{
 			try
 			{
 				// Fetch tickets; filter by agentId if provided
 				var query = _context.SupportTickets.AsQueryable();
 
-				
-					query = query.Where(ticket => ticket.AssignedTo == agentId);
-				
 
-				var ticketsLists = await query
+				//query = query.Where(ticket => ticket.AssignedTo == agentId);
+				// Filter by agentId
+				if (!string.IsNullOrWhiteSpace(agentId))
+				{
+					query = query.Where(ticket => ticket.AssignedTo == agentId);
+				}
+
+				// Filter by status (open, close, pending)
+				if (!string.IsNullOrWhiteSpace(status))
+				{
+					query = query.Where(ticket => ticket.Status== status);
+				}
+				// Total count for pagination metadata
+				var totalRecords = await query.CountAsync();
+
+				//	var ticketsLists = await query
+				//		.OrderByDescending(ticket => ticket.CreatedAt)
+				//		.ToListAsync();
+
+				//	return new TicketResponseByAgentid
+				//	{
+				//		Status = "success",
+				//		Message = ticketsLists.Count != 0
+				//			? "Tickets retrieved successfully."
+				//			: "No tickets found for the specified agent {agentId}",
+				//		Tickets = ticketsLists
+				//	};
+				//}
+				//catch (Exception ex)
+				//{
+				//	return new TicketResponseByAgentid
+				//	{
+				//		Status = "error",
+				//		Message = "An error occurred while retrieving tickets.",
+				//		Error = ex.Message
+				//	};
+				//}
+				// Apply pagination
+				var ticketsList = await query
 					.OrderByDescending(ticket => ticket.CreatedAt)
+					.Skip((page - 1) * pageSize)
+					.Take(pageSize)
 					.ToListAsync();
 
 				return new TicketResponseByAgentid
 				{
 					Status = "success",
-					Message = ticketsLists.Count != 0
+					Message = ticketsList.Any()
 						? "Tickets retrieved successfully."
-						: "No tickets found for the specified agent {agentId}",
-					Tickets = ticketsLists
+						: $"No tickets found for the specified agent {agentId}.",
+					Tickets = ticketsList,
+					Pagination = new Pagination
+					{
+						CurrentPage = page,
+						PageSize = pageSize,
+						TotalRecords = totalRecords,
+						TotalPages = (int)Math.Ceiling((double)totalRecords / pageSize)
+					}
 				};
 			}
 			catch (Exception ex)
@@ -807,6 +851,7 @@ namespace Varadhi.Services
 					Error = ex.Message
 				};
 			}
+
 		}
 		public async Task<CustomerResponse> PostCustomerInfo(CustomerRequest data)
 		{

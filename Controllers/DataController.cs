@@ -256,7 +256,7 @@ namespace Varadhi.Controllers
 				// Prepare email content for the invitation
 				var emailData = new EmailData
 				{
-					From = "chatsupportops@personalizedhealthrx.com",
+					From = "devchatops@personalizedhealthrx.com",
 					To = request.Email,
 					Subject = "Invitation Resent: Join as an Agent",
 					Body = $"Hello,<br><br>You have been re-invited to join as an agent for Tenant ID: {pendingInvitation.TenantID}.<br><br>Your role will be: {(pendingInvitation.RoleID == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
@@ -571,7 +571,7 @@ namespace Varadhi.Controllers
 				// Prepare email content for the invitation
 				var emailData = new EmailData
 				{
-					From = "chatsupportops@personalizedhealthrx.com",
+					From = "devchatops@personalizedhealthrx.com",
 					To = request.Email,
 					Subject = "You're Invited to Join as an Agent",
 					Body = $"Hello,<br><br>You have been invited to join as an agent for Tenant ID: {request.TenantId}.<br><br>Your role will be: {(request.RoleId == 1 ? "Agent" : "Admin")}.<br><br>Use the following link to accept your invitation:<br><a href='{invitationLink}'>{invitationLink}</a><br><br>Thank you,<br>MarketCentral Support Team",
@@ -829,7 +829,7 @@ namespace Varadhi.Controllers
 
 				var emailData = new EmailData
 				{
-					From = "chatsupportops@personalizedhealthrx.com",
+					From = "devchatops@personalizedhealthrx.com",
 					To = request.AdminEmail,
 					Subject = emailSubject,
 					Body = emailBody,

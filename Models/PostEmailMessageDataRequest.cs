@@ -33,6 +33,8 @@
 
 		public string EmailMessageId { get; set; }
 
+		public string RecivedEmail {  get; set; }
+
 		public DateTime CreatedDateTime { get; set; } // Record creation timestamp
 	}
 }

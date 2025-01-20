@@ -79,13 +79,25 @@ namespace Varadhi.Controllers
 				if (totalRecords == 1)
 				{
 					var singleTicket = tickets.First();
-					if (!singleTicket.Subject.Contains("ruby", StringComparison.OrdinalIgnoreCase))
+					if (singleTicket.Subject.Contains("ruby", StringComparison.OrdinalIgnoreCase) || singleTicket.RecievedEmail == "noreply@ruby.com")
 					{
+						return Ok(new
+						{
+							success = true,
+							isavailable = false
+						});
+
 						// Logic for one record and Subject does not contain 'ruby'
 						Console.WriteLine("Only one record and Subject does not contain 'ruby'.");
 					}
 					else
 					{
+						return Ok(new
+						{
+							success = true,
+							isavailable = true,
+							ticketId = tickid.TicketId,
+						});
 						// Logic for one record and Subject contains 'ruby'
 						Console.WriteLine("Only one record and Subject contains 'ruby'.");
 					}
@@ -94,23 +106,6 @@ namespace Varadhi.Controllers
 				{
 					// Logic for multiple records
 					Console.WriteLine($"More than one record found: {totalRecords} records.");
-				}
-				else
-				{
-					// Logic if no records found
-					Console.WriteLine("No records found.");
-				}
-
-				if (tickid == null)
-				{
-					return Ok(new
-					{
-						success = true,
-						isavailable = false
-					});
-				}
-				else
-				{
 					return Ok(new
 					{
 						success = true,
@@ -118,6 +113,34 @@ namespace Varadhi.Controllers
 						ticketId = tickid.TicketId,
 					});
 				}
+				else
+				{
+					// Logic if no records found
+					Console.WriteLine("No records found.");
+					return Ok(new
+					{
+						success = true,
+						isavailable = false
+					});
+				}
+
+				//if (tickid == null)
+				//{
+				//	return Ok(new
+				//	{
+				//		success = true,
+				//		isavailable = false
+				//	});
+				//}
+				//else
+				//{
+				//	return Ok(new
+				//	{
+				//		success = true,
+				//		isavailable = true,
+				//		ticketId = tickid.TicketId,
+				//	});
+				//}
 			}
 			catch (Exception ex)
 			{
@@ -152,6 +175,7 @@ namespace Varadhi.Controllers
 					SentDateTime = request.SentDateTime,
 					Subject = request.Subject,
 					WebLink = request.WebLink,
+					RecievedEmail = request.RecivedEmail,
 					Content = request.Content,
 					EmailMessageId = request.EmailMessageId,
 
