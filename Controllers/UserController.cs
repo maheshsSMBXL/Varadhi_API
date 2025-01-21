@@ -60,7 +60,7 @@ namespace Varadhi.Controllers
                 // Prepare email content
                 var emailData = new EmailData
                 {
-                    From = "devchatops@personalizedhealthrx.com",
+                    From = "chatsupportops@personalizedhealthrx.com",
                     To = request.Email,
                     Subject = "Please Verify Your Email",
                     Body = $"Thank you for registering. Please use the following OTP to verify your email: {verificationCode}",
@@ -548,7 +548,7 @@ namespace Varadhi.Controllers
 				// Prepare email content
 				var emailData = new EmailData
 				{
-					From = "devchatops@personalizedhealthrx.com",
+					From = "chatsupportops@personalizedhealthrx.com",
 					To = request.Email,
 					Subject = "Password Reset OTP",
 					Body = $"Your OTP for password reset is: {otp}. It is valid for 15 minutes.",
